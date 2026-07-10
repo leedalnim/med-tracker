@@ -74,9 +74,22 @@
     return Math.round((keyToDate(b) - keyToDate(a)) / 86400000);
   }
   function fmtTime(ts) {
-    // 24시간제 H:MM:SS (한글 오전/오후 없이 글자 폭 축소)
+    // 24시간제 H:MM:SS (한글 오전/오후 없이 글자 폭 축소) — 원형·상태 표기용
     var d = new Date(ts);
     return d.getHours() + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+  }
+  function fmtTimeKo(ts) {
+    // 한글 시:분:초 — 복용 내역 기록 표기용
+    var d = new Date(ts);
+    return d.getHours() + '시 ' + d.getMinutes() + '분 ' + d.getSeconds() + '초';
+  }
+  function fmtCountdown(ms) {
+    // 남은 시간 H:MM:SS (매초 감소하는 카운트다운)
+    var tot = Math.max(0, Math.floor(ms / 1000));
+    var h = Math.floor(tot / 3600);
+    var m = Math.floor((tot % 3600) / 60);
+    var s = tot % 60;
+    return h + ':' + pad2(m) + ':' + pad2(s);
   }
   function fmtDateLong(ts) {
     return new Date(ts).toLocaleDateString('ko-KR', {
@@ -479,29 +492,30 @@
     return { ringHtml: ringHtml, statusLine: statusLine, ready: s.ready, reached: s.reached };
   }
 
-  // 상세용 대형 히어로 링 (가운데 시각 H:MM:SS 크게 + 먹었어요 버튼 내장)
+  // 상세용 대형 히어로 링 — 대기 중엔 남은 시간을 매초 감소하는 H:MM:SS로 표시
   function buildDetailHero(med) {
     var s = computeInterval(med);
-    var topLabel, bigTime, subLabel, cls;
+    var topLabel, bigVal, bigId, subLabel, cls;
     if (s.reached) {
       cls = ' hl'; topLabel = '오늘 최대';
-      bigTime = s.last ? fmtTime(s.last.ts) : '';
+      bigVal = s.last ? fmtTime(s.last.ts) : '';
       subLabel = s.last ? '마지막 복용' : '';
     } else if (s.ready) {
       cls = ' hl'; topLabel = '지금 복용 가능';
-      bigTime = s.last ? fmtTime(s.last.ts) : '';
+      bigVal = s.last ? fmtTime(s.last.ts) : '';
       subLabel = s.last ? '마지막 복용' : '기록 없음';
     } else {
-      cls = ''; topLabel = '다음 복용 가능';
-      bigTime = fmtTime(s.last.ts + s.intervalMs);
-      subLabel = remainLabel(s.remainMs, false) + ' 남음';
+      cls = ''; topLabel = '다음 복용까지';
+      bigVal = fmtCountdown(s.remainMs);  // 카운트다운 (매초 감소)
+      bigId = ' id="hero-count"';
+      subLabel = fmtTime(s.last.ts + s.intervalMs) + ' 예정';
     }
     return (
       '<div class="hero-ring">' +
         ringSvg(s) +
         '<div class="hero-center">' +
           '<div class="hero-label' + cls + '">' + topLabel + '</div>' +
-          (bigTime ? '<div class="hero-big">' + esc(bigTime) + '</div>' : '') +
+          (bigVal ? '<div class="hero-big"' + (bigId || '') + '>' + esc(bigVal) + '</div>' : '') +
           (subLabel ? '<div class="hero-sub">' + esc(subLabel) + '</div>' : '') +
           '<button class="pill-btn hero-log" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
         '</div>' +
@@ -583,6 +597,7 @@
     var med = medById(state.detailMedId);
     if (!med) { go('home'); return; }
     app.className = 'no-nav';
+    if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } // 직접 재호출 시 이전 타이머 정리
 
     var todays = todayDosesForMed(med.id);
     var isCheck = med.type === 'check';
@@ -655,7 +670,7 @@
         } else {
           listHtml +=
             '<div class="dose-row">' +
-              '<span class="d-time">' + esc(fmtTime(d.ts)) + '</span>' +
+              '<span class="d-time">' + esc(fmtTimeKo(d.ts)) + '</span>' +
               '<span class="d-actions">' +
                 '<button class="ico-btn" data-md-edit="' + esc(d.id) + '" aria-label="시간 수정">' + ICON.edit + '</button>' +
                 '<button class="ico-btn danger" data-md-del="' + esc(d.id) + '" aria-label="삭제">' + ICON.trash + '</button>' +
@@ -763,6 +778,20 @@
         state.doseAdd = false;
         renderMedDetail();
       });
+    }
+
+    // 대기 중이면 히어로 링 카운트다운을 매초 갱신 (폼 열려 있으면 멈춤)
+    if (!isCheck && !state.doseAdd && !state.timeEdit) {
+      tickTimer = setInterval(function () {
+        if (state.screen !== 'medDetail') { clearInterval(tickTimer); return; }
+        var s = computeInterval(med);
+        var el = document.getElementById('hero-count');
+        if (s.ready || s.reached || !el) {
+          renderMedDetail(); // 상태 전환(복용 가능 등) → 전체 갱신
+          return;
+        }
+        el.textContent = fmtCountdown(s.remainMs);
+      }, 1000);
     }
   }
 
