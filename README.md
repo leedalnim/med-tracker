@@ -30,9 +30,9 @@
 - 상대 경로만 사용 → GitHub Pages 프로젝트 경로(`/med-tracker/`)에서 그대로 동작
 
 ## GitHub Pages 배포
-1. 저장소 **Settings → Pages → Source**를 **GitHub Actions**로 설정
-2. `main` 브랜치에 푸시하면 `.github/workflows/deploy.yml`이 자동 배포
-3. 배포 주소: `https://<계정>.github.io/med-tracker/`
+- **Settings → Pages → Source: Deploy from a branch (`main`, `/root`)** 로 설정되어 있음
+- `main` 브랜치에 푸시하면 자동으로 재배포됨
+- 배포 주소: https://leedalnim.github.io/med-tracker/
 
 ## 참고
 - 푸시 알림은 현재 범위에서 제외 (추후 확장 예정)
