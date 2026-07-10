@@ -147,43 +147,6 @@ input, select {
   font-size: 14px;
 }
 
-/* ===== 온보딩 ===== */
-.onboard { padding-top: 8vh; text-align: center; }
-.onboard .logo {
-  width: 72px; height: 72px;
-  border-radius: 22px;
-  margin: 0 auto 24px;
-  display: block;
-}
-.onboard h1 {
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  margin-bottom: 8px;
-}
-.onboard .sub { color: var(--text-dim); font-size: 15px; margin-bottom: 32px; }
-.choice-card {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 22px;
-  margin-bottom: 14px;
-  transition: transform 0.1s ease;
-}
-.choice-card:active { transform: scale(0.98); }
-.choice-card .c-title {
-  font-size: 18px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
-}
-.choice-card .c-desc { color: var(--text-dim); font-size: 13px; }
-
 /* ===== 간격 트래커: 컴팩트 약 카드 ===== */
 .med-card { padding: 16px 18px; }
 .mc-row {

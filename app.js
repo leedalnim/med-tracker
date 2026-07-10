@@ -32,12 +32,7 @@
     migr: 'mt.migr'           // 데이터 마이그레이션 버전
   };
 
-  // type: 'interval' = 간격 트래커(다음 복용 가능 계산) / 'check' = 복용 체크(먹었는지만)
-  var PRESET_MEDS = [
-    { id: 'preset-tylenol', name: '타이레놀 500mg', unit: '정', type: 'interval', intervalHours: 4, maxPerDay: 8 },
-    { id: 'preset-ezn6pro', name: '이지엔6프로', unit: '캡슐', type: 'interval', intervalHours: 4, maxPerDay: 4 }
-  ];
-
+  // 약 type: 'interval' = 간격 트래커(다음 복용 가능 계산) / 'check' = 복용 체크(먹었는지만)
   var SLOTS = [
     { key: 'morning', label: '아침' },
     { key: 'lunch', label: '점심' },
@@ -129,16 +124,12 @@
   }
 
   /* ===== 데이터 ===== */
-  function getMode() { return storage.get(KEY.mode, null); }
+  // 온보딩 제거: 모드가 없으면 간격 트래커로 시작 (설정에서 전환)
+  function getMode() { return storage.get(KEY.mode, 'tracker'); }
   function setMode(m) { storage.set(KEY.mode, m); }
 
-  function getMeds() {
-    if (!storage.has(KEY.meds)) {
-      storage.set(KEY.meds, PRESET_MEDS);
-      return PRESET_MEDS.slice();
-    }
-    return storage.get(KEY.meds, []);
-  }
+  // 프리셋 자동 등록 없음 — 사용자가 직접 약을 등록
+  function getMeds() { return storage.get(KEY.meds, []); }
   function saveMeds(meds) { storage.set(KEY.meds, meds); }
   function medById(id) {
     return getMeds().find(function (m) { return m.id === id; }) || null;
@@ -340,7 +331,6 @@
   function render() {
     if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
     var mode = getMode();
-    if (!mode) { renderOnboarding(); return; }
 
     switch (state.screen) {
       case 'settings': renderSettings(); break;
@@ -355,32 +345,6 @@
         if (mode === 'simple') renderSimpleHome();
         else renderTrackerHome();
     }
-  }
-
-  /* ===== 온보딩 ===== */
-  function renderOnboarding() {
-    app.className = 'no-nav';
-    app.innerHTML =
-      '<div class="onboard">' +
-        '<img class="logo" src="./icons/icon.svg" alt="">' +
-        '<h1>어떤 기능이 필요하세요?</h1>' +
-        '<p class="sub">언제든 설정에서 바꿀 수 있어요</p>' +
-        '<button class="choice-card" data-mode="tracker">' +
-          '<span class="c-title"><span class="dot"></span>다음 약 먹을 시간을 계산하고 싶어요</span>' +
-          '<span class="c-desc">등록한 복용 간격과 하루 최대치를 기준으로 다음 복용 가능 시각을 알려드려요</span>' +
-        '</button>' +
-        '<button class="choice-card" data-mode="simple">' +
-          '<span class="c-title"><span class="dot"></span>약을 먹었는지만 확인하고 싶어요</span>' +
-          '<span class="c-desc">아침 · 점심 · 저녁 큰 버튼을 한 번만 누르면 돼요</span>' +
-        '</button>' +
-      '</div>';
-
-    app.querySelectorAll('.choice-card').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        setMode(btn.getAttribute('data-mode'));
-        go('home');
-      });
-    });
   }
 
   /* ===== 간격 트래커 홈 ===== */
