@@ -23,23 +23,27 @@
   };
 
   var KEY = {
-    mode: 'mt.mode',          // 'tracker' | 'simple'
     meds: 'mt.meds',          // [{id, name, unit, type, intervalHours, maxPerDay}]
     doses: 'mt.doses',        // [{id, medId, ts}]
-    checks: 'mt.checks',      // [{slot, ts, dateKey}]
     period: 'mt.period',      // ['YYYY-MM-DD', ...] 생리로 표시한 날
-    periodOn: 'mt.periodOn',  // 달력에 생리주기 기능 표시 여부
+    periodOn: 'mt.periodOn',  // 생리주기 기능 사용 여부 (기본 꺼짐, 설정에서 켬)
     migr: 'mt.migr'           // 데이터 마이그레이션 버전
   };
 
   // 약 type: 'interval' = 간격 트래커(다음 복용 가능 계산) / 'check' = 복용 체크(먹었는지만)
-  var SLOTS = [
-    { key: 'morning', label: '아침' },
-    { key: 'lunch', label: '점심' },
-    { key: 'dinner', label: '저녁' }
-  ];
 
-  var UNDO_WINDOW_MS = 10 * 60 * 1000; // 복용 기록 후 10분간 취소 표시
+  // 약 선택 목록 겸 기본 등록 약 — 식약처 허가 용법 기준 (선택·등록 후 수정 가능)
+  var MED_CATALOG = [
+    { name: '타이레놀정 500mg', unit: '정', type: 'interval', intervalHours: 4, maxPerDay: 8 },
+    { name: '타이레놀 8시간 이알 서방정 650mg', unit: '정', type: 'interval', intervalHours: 8, maxPerDay: 6 },
+    { name: '이지엔6프로 (덱시부프로펜 300mg)', unit: '캡슐', type: 'interval', intervalHours: 4, maxPerDay: 4 },
+    { name: '부루펜정 400mg (이부프로펜)', unit: '정', type: 'interval', intervalHours: 4, maxPerDay: 3 },
+    { name: '탁센 (나프록센 250mg)', unit: '캡슐', type: 'interval', intervalHours: 6, maxPerDay: 5 },
+    { name: '로수바이브정', unit: '정', type: 'check', intervalHours: null, maxPerDay: 1 },
+    { name: '본비바정 150mg (월 1회)', unit: '정', type: 'check', intervalHours: null, maxPerDay: 1 },
+    { name: '라바로브정', unit: '정', type: 'check', intervalHours: null, maxPerDay: null },
+    { name: '라바로하이정', unit: '정', type: 'check', intervalHours: null, maxPerDay: null }
+  ];
 
   /* ===== 유틸 ===== */
   function esc(s) {
@@ -124,22 +128,28 @@
   }
 
   /* ===== 데이터 ===== */
-  // 온보딩 제거: 모드가 없으면 간격 트래커로 시작 (설정에서 전환)
-  function getMode() { return storage.get(KEY.mode, 'tracker'); }
-  function setMode(m) { storage.set(KEY.mode, m); }
-
-  // 프리셋 자동 등록 없음 — 사용자가 직접 약을 등록
-  function getMeds() { return storage.get(KEY.meds, []); }
+  // 첫 실행 시 카탈로그의 약들을 기본 등록 (수정·삭제 가능)
+  function getMeds() {
+    if (!storage.has(KEY.meds)) {
+      var seeded = MED_CATALOG.map(function (c, i) {
+        return { id: 'cat-' + i, name: c.name, unit: c.unit, type: c.type, intervalHours: c.intervalHours, maxPerDay: c.maxPerDay };
+      });
+      storage.set(KEY.meds, seeded);
+      return seeded;
+    }
+    return storage.get(KEY.meds, []);
+  }
   function saveMeds(meds) { storage.set(KEY.meds, meds); }
   function medById(id) {
     return getMeds().find(function (m) { return m.id === id; }) || null;
   }
 
-  // 기존 저장 데이터 보정: type 기본값, 이지엔6프로 최대치(허가 용량 1일 4캡슐) 수정
+  // 기존 저장 데이터 보정
   function migrate() {
     var ver = storage.get(KEY.migr, 0);
-    if (ver >= 2) return;
-    if (storage.has(KEY.meds)) {
+    if (ver >= 3) return;
+    // v1~2: type 기본값, 이지엔6프로 최대치(허가 용량 1일 4캡슐) 수정
+    if (ver < 2 && storage.has(KEY.meds)) {
       var meds = storage.get(KEY.meds, []).map(function (m) {
         var out = {
           id: m.id, name: m.name, unit: m.unit,
@@ -152,16 +162,17 @@
       });
       storage.set(KEY.meds, meds);
     }
-    storage.set(KEY.migr, 2);
+    // v3: 생리 기능 기본값이 꺼짐으로 바뀜 — 이미 기록이 있는 사용자는 켠 상태 유지
+    if (!storage.has(KEY.periodOn) && storage.get(KEY.period, []).length) {
+      storage.set(KEY.periodOn, true);
+    }
+    storage.set(KEY.migr, 3);
   }
 
   function getDoses() { return storage.get(KEY.doses, []); }
   function saveDoses(doses) { storage.set(KEY.doses, doses); }
 
-  function getChecks() { return storage.get(KEY.checks, []); }
-  function saveChecks(checks) { storage.set(KEY.checks, checks); }
-
-  function isPeriodOn() { return storage.get(KEY.periodOn, true); }
+  function isPeriodOn() { return storage.get(KEY.periodOn, false); } // 기본 꺼짐, 설정에서 켬
 
   function dosesForMed(medId) {
     return getDoses().filter(function (d) { return d.medId === medId; });
@@ -198,45 +209,6 @@
       return d.id === doseId ? { id: d.id, medId: d.medId, ts: newTs } : d;
     }));
     return true;
-  }
-
-  function checkForSlot(slotKey) {
-    var tk = todayKey();
-    return getChecks().find(function (c) {
-      return c.slot === slotKey && c.dateKey === tk;
-    }) || null;
-  }
-  function logCheck(slotKey) {
-    if (checkForSlot(slotKey)) return;
-    var checks = getChecks();
-    checks.push({ slot: slotKey, ts: Date.now(), dateKey: todayKey() });
-    saveChecks(checks);
-  }
-  function undoCheck(slotKey) {
-    var tk = todayKey();
-    saveChecks(getChecks().filter(function (c) {
-      return !(c.slot === slotKey && c.dateKey === tk);
-    }));
-  }
-  // 성공 시 true, 미래 시각이면 저장하지 않고 false
-  function setCheckTime(slotKey, hhmm) {
-    var tk = todayKey();
-    var target = getChecks().find(function (c) { return c.slot === slotKey && c.dateKey === tk; });
-    if (!target) return true;
-    var newTs = applyTimeToTs(target.ts, hhmm);
-    if (newTs > Date.now()) return false;
-    saveChecks(getChecks().map(function (c) {
-      return (c.slot === slotKey && c.dateKey === tk)
-        ? { slot: c.slot, ts: newTs, dateKey: c.dateKey }
-        : c;
-    }));
-    return true;
-  }
-  function lastCheckToday() {
-    var tk = todayKey();
-    var todays = getChecks().filter(function (c) { return c.dateKey === tk; });
-    if (!todays.length) return null;
-    return todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; });
   }
 
   /* ===== 생리주기 ===== */
@@ -330,7 +302,6 @@
 
   function render() {
     if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
-    var mode = getMode();
 
     switch (state.screen) {
       case 'settings': renderSettings(); break;
@@ -341,9 +312,7 @@
         if (isPeriodOn()) { renderPeriod(); }
         else { state.screen = 'home'; render(); }
         break;
-      default:
-        if (mode === 'simple') renderSimpleHome();
-        else renderTrackerHome();
+      default: renderTrackerHome();
     }
   }
 
@@ -766,102 +735,6 @@
     }
   }
 
-  /* ===== 심플 체크 홈 ===== */
-  function renderSimpleHome() {
-    app.className = 'no-nav';
-    var last = lastCheckToday();
-    var slotLabel = '';
-    if (last) {
-      var slot = SLOTS.find(function (s) { return s.key === last.slot; });
-      slotLabel = slot ? slot.label : '';
-    }
-
-    var lastHtml = last
-      ? '<div class="last-taken">' +
-          '<div class="label">마지막으로 드신 시간</div>' +
-          '<div class="time">' + esc(fmtTime(last.ts)) + '</div>' +
-          '<div class="when">오늘 ' + esc(slotLabel) + ' 약</div>' +
-        '</div>'
-      : '<div class="last-taken none">' +
-          '<div class="label">마지막으로 드신 시간</div>' +
-          '<div class="time">오늘은 아직<br>기록이 없어요</div>' +
-        '</div>';
-
-    var slotsHtml = '';
-    SLOTS.forEach(function (s) {
-      var check = checkForSlot(s.key);
-      slotsHtml +=
-        '<button class="slot-btn' + (check ? ' checked' : '') + '" data-slot="' + s.key + '"' +
-          (check ? ' disabled' : '') + '>' +
-          '<span class="slot-name">' + s.label + ' 약</span>' +
-          '<span class="slot-state">' + (check ? esc(fmtTime(check.ts)) + ' 드셨어요' : '누르면 기록돼요') + '</span>' +
-        '</button>';
-      if (check) {
-        var fixing = state.timeEdit && state.timeEdit.kind === 'check' && state.timeEdit.id === s.key;
-        if (fixing) {
-          slotsHtml +=
-            '<div class="slot-fix">' +
-              '<div class="time-edit">' +
-                '<input type="time" step="1" id="te-input" value="' + timeInputValue(check.ts) + '">' +
-                '<button class="pill-btn" data-fix-save="' + s.key + '">저장</button>' +
-              '</div>' +
-            '</div>';
-        } else {
-          slotsHtml +=
-            '<div class="slot-undo">' +
-              '<button data-fix-time="' + s.key + '">시간 고치기</button>' +
-              '<button data-uncheck="' + s.key + '">잘못 눌렀어요? 취소</button>' +
-            '</div>';
-        }
-      }
-    });
-
-    app.innerHTML =
-      '<div class="simple">' +
-        '<div class="simple-top">' +
-          '<div class="simple-date">' + esc(fmtDateLong(Date.now())) + '</div>' +
-          '<button class="gear-btn" id="open-settings" aria-label="설정">' + ICON.gear + '</button>' +
-        '</div>' +
-        lastHtml +
-        slotsHtml +
-      '</div>';
-
-    app.querySelectorAll('[data-slot]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        logCheck(btn.getAttribute('data-slot'));
-        state.timeEdit = null;
-        renderSimpleHome();
-      });
-    });
-    app.querySelectorAll('[data-uncheck]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        undoCheck(btn.getAttribute('data-uncheck'));
-        state.timeEdit = null;
-        renderSimpleHome();
-      });
-    });
-    app.querySelectorAll('[data-fix-time]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        state.timeEdit = { kind: 'check', id: btn.getAttribute('data-fix-time') };
-        renderSimpleHome();
-      });
-    });
-    app.querySelectorAll('[data-fix-save]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var val = document.getElementById('te-input').value;
-        if (val && !setCheckTime(btn.getAttribute('data-fix-save'), val)) {
-          window.alert('지금보다 미래 시각으로는 저장할 수 없어요.');
-          return;
-        }
-        state.timeEdit = null;
-        renderSimpleHome();
-      });
-    });
-    document.getElementById('open-settings').addEventListener('click', function () {
-      go('settings');
-    });
-  }
-
   /* ===== 달력 ===== */
   function renderCalendar() {
     app.className = '';
@@ -1169,8 +1042,6 @@
   /* ===== 설정 ===== */
   function renderSettings() {
     app.className = 'no-nav';
-    var mode = getMode();
-    var isTracker = mode === 'tracker';
 
     var html =
       '<div class="back-head">' +
@@ -1178,47 +1049,36 @@
         '<h1>설정</h1>' +
       '</div>';
 
-    if (isTracker) {
-      html += '<div class="settings-group"><h2>달력</h2>' +
-        '<button class="toggle-row" id="period-toggle">' +
-          '<div><div class="m-title">생리주기 기능</div>' +
-          '<div class="m-desc">달력에서 생리 기록과 다음 예정일 계산을 사용해요</div></div>' +
-          '<span class="switch' + (isPeriodOn() ? ' on' : '') + '"></span>' +
-        '</button></div>';
-
-      html += '<div class="settings-group"><h2>내 약 관리</h2>';
-      var meds = getMeds();
-      if (!meds.length) {
-        html += '<p class="settings-note">등록된 약이 없어요.</p>';
-      }
-      meds.forEach(function (med) {
-        var meta = med.type === 'check'
-          ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
-          : '최소 간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
-        html +=
-          '<div class="med-row">' +
-            '<div>' +
-              '<div class="r-name">' + esc(med.name) + '</div>' +
-              '<div class="r-meta">' + meta + '</div>' +
-            '</div>' +
-            '<div class="r-actions">' +
-              '<button data-edit="' + esc(med.id) + '">수정</button>' +
-              '<button class="danger" data-del="' + esc(med.id) + '">삭제</button>' +
-            '</div>' +
-          '</div>';
-      });
-      html += '<button class="pill-btn secondary" id="add-med">+ 약 추가</button></div>';
+    html += '<div class="settings-group"><h2>내 약 관리</h2>';
+    var meds = getMeds();
+    if (!meds.length) {
+      html += '<p class="settings-note">등록된 약이 없어요.</p>';
     }
+    meds.forEach(function (med) {
+      var meta = med.type === 'check'
+        ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
+        : '최소 간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
+      html +=
+        '<div class="med-row">' +
+          '<div>' +
+            '<div class="r-name">' + esc(med.name) + '</div>' +
+            '<div class="r-meta">' + meta + '</div>' +
+          '</div>' +
+          '<div class="r-actions">' +
+            '<button data-edit="' + esc(med.id) + '">수정</button>' +
+            '<button class="danger" data-del="' + esc(med.id) + '">삭제</button>' +
+          '</div>' +
+        '</div>';
+    });
+    html += '<button class="pill-btn secondary" id="add-med">+ 약 추가</button></div>';
 
-    html +=
-      '<div class="settings-group"><h2>화면</h2>' +
-        '<button class="toggle-row" id="mode-switch">' +
-          '<div><div class="m-title">' + (isTracker ? '심플 체크 모드로 전환' : '간격 트래커 모드로 전환') + '</div>' +
-          '<div class="m-desc">' + (isTracker
-            ? '아침 · 점심 · 저녁 큰 버튼만 있는 화면으로 바꿔요'
-            : '간격 계산 · 달력이 있는 화면으로 바꿔요') + '</div></div>' +
-          '<span class="check">→</span>' +
-        '</button></div>';
+    // 생리주기: 기본 꺼짐 — 여기서 켜면 달력에 기록 기능이 나타남
+    html += '<div class="settings-group"><h2>달력</h2>' +
+      '<button class="toggle-row" id="period-toggle">' +
+        '<div><div class="m-title">생리주기 기능</div>' +
+        '<div class="m-desc">켜면 달력에서 생리 기록과 다음 예정일 계산을 쓸 수 있어요</div></div>' +
+        '<span class="switch' + (isPeriodOn() ? ' on' : '') + '"></span>' +
+      '</button></div>';
 
     html +=
       '<p class="settings-note">모든 데이터는 이 기기의 브라우저에만 저장돼요. 서버로 전송되지 않아요.<br>' +
@@ -1228,34 +1088,27 @@
 
     document.getElementById('back').addEventListener('click', function () { go('home'); });
 
-    document.getElementById('mode-switch').addEventListener('click', function () {
-      setMode(isTracker ? 'simple' : 'tracker');
-      go('home');
+    document.getElementById('period-toggle').addEventListener('click', function () {
+      storage.set(KEY.periodOn, !isPeriodOn());
+      renderSettings();
     });
-
-    if (isTracker) {
-      document.getElementById('period-toggle').addEventListener('click', function () {
-        storage.set(KEY.periodOn, !isPeriodOn());
-        renderSettings();
+    document.getElementById('add-med').addEventListener('click', function () {
+      go('medForm', { editMedId: null, returnTo: 'settings' });
+    });
+    app.querySelectorAll('[data-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        go('medForm', { editMedId: btn.getAttribute('data-edit'), returnTo: 'settings' });
       });
-      document.getElementById('add-med').addEventListener('click', function () {
-        go('medForm', { editMedId: null, returnTo: 'settings' });
+    });
+    app.querySelectorAll('[data-del]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var med = medById(btn.getAttribute('data-del'));
+        if (med && window.confirm('"' + med.name + '"을(를) 삭제할까요?\n복용 이력은 남아있어요.')) {
+          saveMeds(getMeds().filter(function (mm) { return mm.id !== med.id; }));
+          renderSettings();
+        }
       });
-      app.querySelectorAll('[data-edit]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          go('medForm', { editMedId: btn.getAttribute('data-edit'), returnTo: 'settings' });
-        });
-      });
-      app.querySelectorAll('[data-del]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var med = medById(btn.getAttribute('data-del'));
-          if (med && window.confirm('"' + med.name + '"을(를) 삭제할까요?\n복용 이력은 남아있어요.')) {
-            saveMeds(getMeds().filter(function (mm) { return mm.id !== med.id; }));
-            renderSettings();
-          }
-        });
-      });
-    }
+    });
   }
 
   /* ===== 약 추가/수정 폼 ===== */
@@ -1264,12 +1117,36 @@
     var editing = state.editMedId ? medById(state.editMedId) : null;
     var curType = editing ? (editing.type || 'interval') : 'interval';
 
+    // 미리 등록된 약 선택 칩 (새 약 추가 시에만)
+    var catalogHtml = '';
+    if (!editing) {
+      catalogHtml =
+        '<div class="form-field">' +
+          '<label>자주 쓰는 약 (선택하면 자동 입력)</label>' +
+          '<div class="chip-row">' +
+            MED_CATALOG.map(function (c, i) {
+              return '<button type="button" class="chip" data-cat="' + i + '">' + esc(c.name) + '</button>';
+            }).join('') +
+          '</div>' +
+          '<p class="form-hint">목록에 없는 약은 아래에 직접 입력하세요. 선택한 값도 수정할 수 있어요.</p>' +
+        '</div>';
+    }
+
+    // 단위: 직접 입력 대신 선택
+    var UNITS = ['정', '캡슐', '포', '회'];
+    var curUnit = editing ? editing.unit : '정';
+    if (UNITS.indexOf(curUnit) < 0) UNITS.unshift(curUnit); // 기존 커스텀 단위 보존
+    var unitOptions = UNITS.map(function (u) {
+      return '<option value="' + esc(u) + '"' + (u === curUnit ? ' selected' : '') + '>' + esc(u) + '</option>';
+    }).join('');
+
     app.innerHTML =
       '<div class="back-head">' +
         '<button id="back" aria-label="뒤로">←</button>' +
         '<h1>' + (editing ? '약 수정' : '약 추가') + '</h1>' +
       '</div>' +
       '<div class="card">' +
+        catalogHtml +
         '<div class="form-field">' +
           '<label>기록 방식</label>' +
           '<div class="type-select">' +
@@ -1292,10 +1169,10 @@
             '<label for="f-max" id="label-max">1일 최대 (개수)</label>' +
             '<input id="f-max" type="number" inputmode="numeric" min="1" step="1" placeholder="8" value="' + (editing && editing.maxPerDay != null ? editing.maxPerDay : '') + '">' +
           '</div>' +
-        '</div>' +
-        '<div class="form-field">' +
-          '<label for="f-unit">단위</label>' +
-          '<input id="f-unit" type="text" placeholder="정 / 캡슐 / 포" value="' + (editing ? esc(editing.unit) : '정') + '">' +
+          '<div class="form-field form-unit">' +
+            '<label for="f-unit">단위</label>' +
+            '<select id="f-unit">' + unitOptions + '</select>' +
+          '</div>' +
         '</div>' +
         '<p class="form-error" id="form-error"></p>' +
         '<div class="form-actions">' +
@@ -1305,18 +1182,40 @@
       '</div>';
 
     var typeButtons = app.querySelectorAll('.type-select button');
+    function setType(t) {
+      curType = t;
+      typeButtons.forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-type') === t); });
+      applyTypeUI();
+    }
     function applyTypeUI() {
       document.getElementById('field-interval').style.display = curType === 'interval' ? '' : 'none';
       document.getElementById('label-max').textContent = curType === 'interval' ? '1일 최대 (개수)' : '1일 최대 (선택)';
     }
     typeButtons.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        curType = btn.getAttribute('data-type');
-        typeButtons.forEach(function (b) { b.classList.toggle('active', b === btn); });
-        applyTypeUI();
-      });
+      btn.addEventListener('click', function () { setType(btn.getAttribute('data-type')); });
     });
     applyTypeUI();
+
+    // 칩 선택 → 이름·기록방식·간격·최대·단위 자동 입력 (모두 수정 가능)
+    app.querySelectorAll('[data-cat]').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        var c = MED_CATALOG[Number(chip.getAttribute('data-cat'))];
+        document.getElementById('f-name').value = c.name;
+        document.getElementById('f-interval').value = c.intervalHours != null ? c.intervalHours : '';
+        document.getElementById('f-max').value = c.maxPerDay != null ? c.maxPerDay : '';
+        var unitSel = document.getElementById('f-unit');
+        if (![].some.call(unitSel.options, function (o) { return o.value === c.unit; })) {
+          unitSel.add(new Option(c.unit, c.unit));
+        }
+        unitSel.value = c.unit;
+        setType(c.type || 'interval');
+        app.querySelectorAll('[data-cat]').forEach(function (b) { b.classList.toggle('active', b === chip); });
+      });
+    });
+    var nameInput = document.getElementById('f-name');
+    nameInput.addEventListener('input', function () {
+      app.querySelectorAll('[data-cat]').forEach(function (b) { b.classList.remove('active'); });
+    });
 
     document.getElementById('back').addEventListener('click', backFromForm);
     document.getElementById('cancel').addEventListener('click', backFromForm);

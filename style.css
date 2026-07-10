@@ -371,92 +371,6 @@ input, select {
 .time-edit input:focus { border-color: var(--text); }
 .time-edit .pill-btn { width: auto; padding: 10px 20px; font-size: 14px; }
 
-/* ===== 심플 체크 모드 ===== */
-.simple { padding-top: 8px; }
-.simple-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-.simple-date { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
-.gear-btn {
-  width: 48px; height: 48px;
-  border-radius: 50%;
-  background: var(--card);
-  box-shadow: var(--shadow);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-dim);
-}
-
-.last-taken {
-  background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  text-align: center;
-  padding: 30px 20px;
-  margin-bottom: 20px;
-}
-.last-taken .label { font-size: 19px; color: var(--text-dim); font-weight: 700; }
-.last-taken .time {
-  font-size: 54px;
-  font-weight: 800;
-  letter-spacing: -1.5px;
-  line-height: 1.15;
-  margin-top: 6px;
-}
-.last-taken .when { font-size: 21px; font-weight: 700; margin-top: 4px; }
-.last-taken.none .time { font-size: 32px; color: var(--text-dim); }
-
-.slot-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 25px 24px;
-  margin-bottom: 14px;
-  border: 2.5px solid transparent;
-  transition: transform 0.1s ease;
-}
-.slot-btn:active { transform: scale(0.98); }
-.slot-btn .slot-name { font-size: 27px; font-weight: 800; }
-.slot-btn .slot-state { font-size: 19px; font-weight: 700; color: var(--text-dim); }
-.slot-btn.checked { border-color: var(--text); }
-.slot-btn.checked .slot-state { color: var(--text); }
-.slot-btn.checked .slot-state::before {
-  content: "✓ ";
-  color: var(--accent);
-}
-.slot-undo {
-  display: flex;
-  justify-content: flex-end;
-  gap: 14px;
-  margin: -6px 8px 14px;
-}
-.slot-undo button {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-dim);
-  padding: 6px 8px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.slot-fix {
-  background: var(--card);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow);
-  padding: 16px;
-  margin: -4px 0 14px;
-}
-.slot-fix .time-edit { margin-top: 0; }
-.slot-fix input { font-size: 22px; font-weight: 700; text-align: center; }
-.slot-fix .pill-btn { font-size: 17px; }
-
 /* ===== 달력 ===== */
 .cycle-info {
   display: flex;
@@ -620,6 +534,42 @@ input, select {
   font-weight: 700;
   margin: -4px 2px 12px;
 }
+.form-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+/* 자주 쓰는 약 선택 칩 */
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 13px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.chip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 단위 선택 */
+.form-field select {
+  width: 100%;
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 12px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.form-field select:focus { border-color: var(--text); }
+.form-row .form-unit { flex: 0 0 88px; }
 
 /* 기록 방식 선택 */
 .type-select { display: flex; gap: 10px; }
@@ -663,7 +613,6 @@ input, select {
 }
 .toggle-row .m-title { font-size: 15px; font-weight: 700; }
 .toggle-row .m-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
-.toggle-row .check { color: var(--accent); font-weight: 800; font-size: 17px; flex-shrink: 0; }
 .switch {
   width: 50px; height: 30px;
   border-radius: 999px;
@@ -763,6 +712,3 @@ input, select {
 }
 .back-head h1 { font-size: 23px; font-weight: 800; letter-spacing: -0.4px; }
 
-@media (min-width: 480px) {
-  .last-taken .time { font-size: 62px; }
-}
