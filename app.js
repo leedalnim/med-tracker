@@ -788,16 +788,18 @@
         '<p class="sub">날짜를 누르면 그날의 기록을 볼 수 있어요</p>' +
       '</header>';
 
-    if (periodOn && stats) {
-      if (stats.avgCycle) {
+    // 생리 화면(기록 목록·추가·예측)으로 가는 버튼
+    if (periodOn) {
+      var ciText;
+      if (stats && stats.avgCycle) {
         var dd = diffDays(tk, stats.nextStart);
         var ddLabel = dd > 0 ? 'D-' + dd : (dd === 0 ? '오늘' : dd * -1 + '일 지남');
-        html += '<div class="cycle-info"><span class="dot"></span>평균 주기 ' + stats.avgCycle +
-          '일 · 다음 예정일 ' + esc(fmtKeyShort(stats.nextStart).replace(' · 오늘', '')) +
-          ' (' + ddLabel + ')</div>';
+        ciText = '다음 생리 예정일 ' + esc(fmtKeyShort(stats.nextStart).replace(' · 오늘', '')) + ' (' + ddLabel + ')';
       } else {
-        html += '<div class="cycle-info"><span class="dot"></span>생리 기록이 2번 이상 쌓이면 다음 예정일을 계산해요</div>';
+        ciText = '생리 기록 · 예측 보기';
       }
+      html += '<button class="cycle-info" id="open-period"><span class="dot"></span>' +
+        ciText + '<span class="ci-arrow">›</span></button>';
     }
 
     html += '<div class="card">' +
@@ -845,6 +847,10 @@
         renderCalendar();
       });
     });
+    var openPeriod = document.getElementById('open-period');
+    if (openPeriod) {
+      openPeriod.addEventListener('click', function () { go('period'); });
+    }
     bindDayPanel();
     bindBottomNav();
   }
@@ -935,18 +941,18 @@
     });
   }
 
-  /* ===== 생리 주기 화면 ===== */
+  /* ===== 생리 주기 화면 (달력에서 진입) ===== */
   function renderPeriod() {
-    app.className = '';
+    app.className = 'no-nav';
     var stats = cycleStats();
     var eps = stats ? stats.episodes : [];
     var tk = todayKey();
 
     var html =
-      '<header class="screen-head">' +
+      '<div class="back-head">' +
+        '<button id="back" aria-label="뒤로">←</button>' +
         '<h1>생리 주기</h1>' +
-        '<p class="sub">기록한 날짜만으로 계산해요</p>' +
-      '</header>';
+      '</div>';
 
     // 예측 요약
     if (stats && stats.avgCycle) {
@@ -1012,8 +1018,9 @@
       html += '<section class="card">' + rows + '</section>';
     }
 
-    html += bottomNavHtml('period');
     app.innerHTML = html;
+
+    document.getElementById('back').addEventListener('click', function () { go('calendar'); });
 
     var addBtn = document.getElementById('p-add');
     if (addBtn) {
@@ -1050,7 +1057,6 @@
         }
       });
     });
-    bindBottomNav();
   }
 
   /* ===== 설정 ===== */
@@ -1260,7 +1266,6 @@
     pillPlus: '<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.2" y="10.6" width="12.6" height="6.6" rx="3.3" transform="rotate(-45 9.5 13.9)"/><path d="M7.2 11.6l4.6 4.6"/><path d="M18.5 3.5v6M15.5 6.5h6"/></svg>',
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4.5-1L20 7.5a2.1 2.1 0 0 0-3-3L5.5 16 4 20z"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/><path d="M10 11v6M14 11v6"/></svg>',
-    drop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5c3.5 4.2 6 7.3 6 10.2a6 6 0 0 1-12 0c0-2.9 2.5-6 6-10.2z"/></svg>',
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.2 12 4l9 7.2"/><path d="M5.5 10v10h13V10"/></svg>',
     cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"/></svg>',
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/></svg>'
@@ -1274,7 +1279,6 @@
     return '<nav class="bottom-nav">' +
       item('home', ICON.home, '홈') +
       item('calendar', ICON.cal, '달력') +
-      (isPeriodOn() ? item('period', ICON.drop, '생리') : '') +
       item('settings', ICON.gear, '설정') +
       '</nav>';
   }
