@@ -386,6 +386,7 @@
   /* ===== 간격 트래커 홈 ===== */
   function renderTrackerHome() {
     app.className = '';
+    if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } // 직접 재호출 시 이전 타이머 정리
     var meds = getMeds();
 
     var html =
@@ -410,9 +411,23 @@
     });
     bindBottomNav();
 
+    // 대기 중 약의 링 카운트다운을 매초 갱신 (상태 전환 시 전체 재렌더)
     tickTimer = setInterval(function () {
-      if (state.screen === 'home' && !state.timeEdit) renderTrackerHome();
-    }, 30000);
+      if (state.screen !== 'home') { clearInterval(tickTimer); return; }
+      var needFull = false;
+      getMeds().forEach(function (m) {
+        if (m.type === 'check') return;
+        var cs = computeInterval(m);
+        var el = document.getElementById('rc-' + m.id);
+        if (!cs.ready && !cs.reached) {
+          if (el) el.textContent = fmtCountdown(cs.remainMs);
+          else needFull = true;       // 새로 대기 상태가 됨
+        } else if (el) {
+          needFull = true;            // 복용 가능/최대로 전환됨
+        }
+      });
+      if (needFull) renderTrackerHome();
+    }, 1000);
   }
 
   // 간격 트래커 약의 상태·링 진행도 계산 (원시값)
@@ -456,34 +471,26 @@
       '</svg>';
   }
 
-  // 홈 카드용 소형 링 — 원 안엔 시각(H:MM:SS), 원 밖엔 남은 시간(n시간 n분)
+  // 홈 카드용 소형 링 — 원 안엔 남은 시간 카운트다운(H:MM:SS, 매초 감소),
+  // 원 밖엔 다음 복용 가능 시각을 라벨과 함께
   function buildIntervalRing(med, sizeClass) {
     var s = computeInterval(med);
-    var innerLabel, innerTime, centerCls, statusLine;
+    var innerTime, innerLabel, innerId, centerCls, statusLine;
     if (s.reached) {
-      centerCls = ' max';
-      innerLabel = s.last ? '마지막' : '';
-      innerTime = s.last ? esc(fmtTime(s.last.ts)) : '오늘<br>최대';
-      statusLine = '<span class="hl">오늘 최대</span>';
+      centerCls = ' max'; innerTime = '오늘<br>최대'; innerLabel = '';
+      statusLine = s.last ? '마지막 복용 ' + esc(fmtTime(s.last.ts)) : '';
     } else if (s.ready) {
-      centerCls = ' ready';
-      if (s.last) {
-        innerLabel = '마지막'; innerTime = esc(fmtTime(s.last.ts));
-        statusLine = '<span class="hl">지금 복용 가능</span>';
-      } else {
-        innerLabel = ''; innerTime = '지금<br>가능';
-        statusLine = '아직 복용 기록이 없어요';
-      }
+      centerCls = ' ready'; innerTime = '지금<br>가능'; innerLabel = '';
+      statusLine = s.last ? '마지막 복용 ' + esc(fmtTime(s.last.ts)) : '아직 복용 기록이 없어요';
     } else {
-      centerCls = '';
-      innerLabel = '다음';
-      innerTime = esc(fmtTime(s.last.ts + s.intervalMs));
-      statusLine = '<span class="hl">' + esc(remainLabel(s.remainMs, false)) + ' 남음</span>';
+      centerCls = ''; innerTime = esc(fmtCountdown(s.remainMs)); innerLabel = '남음';
+      innerId = ' id="rc-' + esc(med.id) + '"';
+      statusLine = '<span class="hl">' + esc(fmtTime(s.last.ts + s.intervalMs)) + '</span> 이후 복용 가능';
     }
     var ringCenter =
       '<div class="ring-center' + centerCls + '">' +
+        '<div class="rc-time"' + (innerId || '') + '>' + innerTime + '</div>' +
         (innerLabel ? '<div class="rc-label">' + innerLabel + '</div>' : '') +
-        '<div class="rc-time">' + innerTime + '</div>' +
       '</div>';
     var ringHtml =
       '<div class="ring-wrap' + (sizeClass ? ' ' + sizeClass : '') + '">' +
