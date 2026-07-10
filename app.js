@@ -390,8 +390,8 @@
     }, 30000);
   }
 
-  // 간격 트래커 약의 원형 카운트다운 링 + 상태 문구 계산 (홈·상세 공용)
-  function buildIntervalRing(med, sizeClass) {
+  // 간격 트래커 약의 상태·링 진행도 계산 (원시값)
+  function computeInterval(med) {
     var now = Date.now();
     var last = lastDoseForMed(med.id);
     var todays = todayDosesForMed(med.id);
@@ -405,51 +405,85 @@
     }
     var C = 2 * Math.PI * 54;
     var frac = ready ? 1 : Math.min(1, remainMs / intervalMs);
-    var dashoffset = ready ? 0 : C * (1 - frac);
+    var dashoffset = reached ? 0 : (ready ? 0 : C * (1 - frac));
+    return {
+      last: last, reached: reached, ready: ready, remainMs: remainMs,
+      intervalMs: intervalMs, C: C, dashoffset: dashoffset,
+      ringCls: (reached || ready) ? ' ready' : ''
+    };
+  }
 
-    var remainRing = (function () {
-      var totalMin = Math.max(1, Math.ceil(remainMs / 60000)); // 남은 시간은 올림(보수적)
-      var h = Math.floor(totalMin / 60);
-      var m = totalMin % 60;
-      if (h > 0 && m > 0) return h + '시간<br>' + m + '분';
-      if (h > 0) return h + '시간';
-      return m + '분';
-    })();
+  function remainLabel(remainMs, br) {
+    var totalMin = Math.max(1, Math.ceil(remainMs / 60000)); // 올림(보수적)
+    var h = Math.floor(totalMin / 60);
+    var m = totalMin % 60;
+    if (h > 0 && m > 0) return h + '시간' + (br ? '<br>' : ' ') + m + '분';
+    if (h > 0) return h + '시간';
+    return m + '분';
+  }
 
-    // 남은 시간·상태는 링이 전담, 상태 문구는 링에 없는 정보만
-    // 보수적 표시: 오늘 최대치에 도달하면 간격과 무관하게 '오늘 최대' 상태로 고정
-    var ringCenter, ringCls, statusLine;
-    if (reached) {
-      dashoffset = 0;
-      ringCls = ' ready';
+  function ringSvg(s) {
+    return '<svg viewBox="0 0 120 120" aria-hidden="true">' +
+        '<circle class="ring-bg" cx="60" cy="60" r="54"></circle>' +
+        '<circle class="ring-fg' + s.ringCls + '" cx="60" cy="60" r="54" ' +
+          'stroke-dasharray="' + s.C.toFixed(2) + '" stroke-dashoffset="' + s.dashoffset.toFixed(2) + '" ' +
+          'transform="rotate(-90 60 60)"></circle>' +
+      '</svg>';
+  }
+
+  // 홈 카드용 소형 링 + 상태 문구
+  function buildIntervalRing(med, sizeClass) {
+    var s = computeInterval(med);
+    var ringCenter, statusLine;
+    if (s.reached) {
       ringCenter = '<div class="ring-center max"><div class="big">오늘<br>최대</div></div>';
-      statusLine = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '';
-    } else if (ready) {
-      ringCls = ' ready';
+      statusLine = s.last ? '마지막 복용 ' + esc(fmtTime(s.last.ts)) : '';
+    } else if (s.ready) {
       ringCenter = '<div class="ring-center ready"><div class="big">지금 복용<br>가능</div></div>';
-      statusLine = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '아직 복용 기록이 없어요';
+      statusLine = s.last ? '마지막 복용 ' + esc(fmtTime(s.last.ts)) : '아직 복용 기록이 없어요';
     } else {
-      ringCls = '';
       ringCenter =
         '<div class="ring-center">' +
-          '<div class="big">' + remainRing + '</div>' +
+          '<div class="big">' + remainLabel(s.remainMs, true) + '</div>' +
           '<div class="small">남음</div>' +
         '</div>';
-      statusLine = '<span class="hl">' + esc(fmtTime(last.ts + intervalMs)) + '</span> 이후 가능 · 마지막 ' + esc(fmtTime(last.ts));
+      statusLine = '<span class="hl">' + esc(fmtTime(s.last.ts + s.intervalMs)) + '</span> 이후 가능 · 마지막 ' + esc(fmtTime(s.last.ts));
     }
-
     var ringHtml =
       '<div class="ring-wrap' + (sizeClass ? ' ' + sizeClass : '') + '">' +
-        '<svg viewBox="0 0 120 120" aria-hidden="true">' +
-          '<circle class="ring-bg" cx="60" cy="60" r="54"></circle>' +
-          '<circle class="ring-fg' + ringCls + '" cx="60" cy="60" r="54" ' +
-            'stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + dashoffset.toFixed(2) + '" ' +
-            'transform="rotate(-90 60 60)"></circle>' +
-        '</svg>' +
-        ringCenter +
+        ringSvg(s) + ringCenter +
       '</div>';
+    return { ringHtml: ringHtml, statusLine: statusLine, ready: s.ready, reached: s.reached };
+  }
 
-    return { ringHtml: ringHtml, statusLine: statusLine, ready: ready, reached: reached };
+  // 상세용 대형 히어로 링 (가운데 시각 H:MM:SS 크게 + 먹었어요 버튼 내장)
+  function buildDetailHero(med) {
+    var s = computeInterval(med);
+    var topLabel, bigTime, subLabel, cls;
+    if (s.reached) {
+      cls = ' hl'; topLabel = '오늘 최대';
+      bigTime = s.last ? fmtTime(s.last.ts) : '';
+      subLabel = s.last ? '마지막 복용' : '';
+    } else if (s.ready) {
+      cls = ' hl'; topLabel = '지금 복용 가능';
+      bigTime = s.last ? fmtTime(s.last.ts) : '';
+      subLabel = s.last ? '마지막 복용' : '기록 없음';
+    } else {
+      cls = ''; topLabel = '다음 복용 가능';
+      bigTime = fmtTime(s.last.ts + s.intervalMs);
+      subLabel = remainLabel(s.remainMs, false) + ' 남음';
+    }
+    return (
+      '<div class="hero-ring">' +
+        ringSvg(s) +
+        '<div class="hero-center">' +
+          '<div class="hero-label' + cls + '">' + topLabel + '</div>' +
+          (bigTime ? '<div class="hero-big">' + esc(bigTime) + '</div>' : '') +
+          (subLabel ? '<div class="hero-sub">' + esc(subLabel) + '</div>' : '') +
+          '<button class="pill-btn hero-log" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
+        '</div>' +
+      '</div>'
+    );
   }
 
   function medCardHtml(med) {
@@ -541,8 +575,8 @@
           : '') +
       '</div>';
 
-    // 상세 상단: 간격 트래커면 원형 링, 복용 체크면 오늘 상태 문구
-    var topHtml;
+    // 상세 상단: 간격 트래커면 대형 히어로 링(버튼 내장), 복용 체크면 상태+버튼
+    var topCard;
     if (isCheck) {
       var todayLastD = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
@@ -550,17 +584,19 @@
       var checkStatus = todayLastD
         ? '<p class="detail-status"><b class="hl">오늘 드셨어요</b> · ' + esc(fmtTime(todayLastD.ts)) + '</p>'
         : '<p class="detail-status">오늘 아직 기록이 없어요</p>';
-      topHtml = summary + checkStatus;
-    } else {
-      var rv = buildIntervalRing(med, '');
-      topHtml =
-        '<div class="detail-top-body">' +
-          rv.ringHtml +
-          '<div class="med-status">' +
-            '<p class="status-main">' + rv.statusLine + '</p>' +
+      topCard =
+        '<div class="card">' +
+          summary + checkStatus +
+          '<div class="status-actions">' +
+            '<button class="pill-btn compact" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
           '</div>' +
-        '</div>' +
-        summary;
+        '</div>';
+    } else {
+      topCard =
+        '<div class="card detail-hero-card">' +
+          buildDetailHero(med) +
+          summary +
+        '</div>';
     }
 
     // 최근 30일 기록을 날짜별로
@@ -579,7 +615,11 @@
         if (k !== curKey) {
           curKey = k;
           var dayCount = doses.filter(function (x) { return dateKey(x.ts) === k; }).length;
-          listHtml += '<div class="history-date">' + esc(fmtKeyShort(k)) + ' · ' + dayCount + med.unit + '</div>';
+          var isToday = k === todayKey();
+          var dateLabel = esc(fmtKeyShort(k).replace(' · 오늘', ''));
+          listHtml += '<div class="history-date">' +
+            (isToday ? '<span class="today-tag">오늘</span>' : '') +
+            dateLabel + ' · ' + dayCount + med.unit + '</div>';
         }
         var editing = state.timeEdit && state.timeEdit.kind === 'dose' && state.timeEdit.id === d.id;
         if (editing) {
@@ -610,12 +650,7 @@
           '<button class="ico-btn sm" id="edit-med-info" aria-label="약 정보 수정">' + ICON.edit + '</button>' +
         '</div>' +
       '</div>' +
-      '<div class="card">' +
-        topHtml +
-        '<div class="status-actions">' +
-          '<button class="pill-btn compact" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
-        '</div>' +
-      '</div>' +
+      topCard +
       '<h2 class="section-title">복용 내역 (최근 30일)</h2>' +
       '<div class="card">' + listHtml + '</div>';
 

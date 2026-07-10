@@ -305,21 +305,58 @@ input, select {
 .ico-btn.sm { width: 30px; height: 30px; }
 .ico-btn.sm svg { width: 14px; height: 14px; }
 
-/* 상세 상단: 링 + 상태 */
-.detail-top-body {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 14px;
+/* 상세 대형 히어로 링 (가운데 상태 + 버튼 내장) */
+.detail-hero-card { padding-top: 22px; }
+.hero-ring {
+  position: relative;
+  width: 260px;
+  max-width: 82%;
+  aspect-ratio: 1;
+  margin: 4px auto 20px;
 }
-.detail-top-body .med-status { flex: 1; min-width: 0; }
-.detail-top-body .status-main { font-size: 15px; font-weight: 700; line-height: 1.4; color: var(--text); }
-.detail-top-body .status-main .hl { color: var(--accent); font-weight: 800; }
+.hero-ring svg { width: 100%; height: 100%; display: block; }
+.hero-ring .ring-bg { stroke-width: 6.5; }
+.hero-ring .ring-fg { stroke-width: 6.5; }
+.hero-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 3px;
+  padding: 18%;
+}
+.hero-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.hero-label.hl { color: var(--accent); }
+.hero-big {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.hero-sub {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.hero-log {
+  width: auto;
+  margin-top: 12px;
+  padding: 10px 22px;
+  font-size: 14px;
+}
 
 .detail-stats {
   display: flex;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 4px;
 }
 .ds-item {
   flex: 1;
@@ -545,6 +582,27 @@ input, select {
   white-space: nowrap;
 }
 .period-toggle.on { background: var(--accent); color: var(--accent-text); }
+
+.history-date {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-dim);
+  padding: 12px 2px 4px;
+}
+.history-date:first-child { padding-top: 2px; }
+.today-tag {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent);
+  color: var(--accent-text);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 9px;
+}
 
 .dose-row {
   display: flex;
