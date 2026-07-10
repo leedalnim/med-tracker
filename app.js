@@ -383,14 +383,29 @@
       ? '오늘 ' + todays.length + '/' + med.maxPerDay
       : '오늘 ' + todays.length + '회';
 
+    // 액션(기록 버튼 + 수정/취소)은 링 오른쪽 열에 한 줄로
+    var links = [];
+    if (last) {
+      links.push('<button class="text-btn" data-edit-time="' + esc(last.id) + '">수정</button>');
+      if (now - last.ts < UNDO_WINDOW_MS) {
+        links.push('<button class="text-btn" data-undo="' + esc(last.id) + '">취소</button>');
+      }
+    }
+    var actions =
+      '<div class="status-actions">' +
+        '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + (isCheck ? '복용 체크' : '복용 기록') + '</button>' +
+        links.join('') +
+      '</div>';
+
     var body = '';
     if (isCheck) {
       var todayLast = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
-      body = todayLast
+      var checkLine = todayLast
         ? '<p class="check-line"><span class="ok">✓</span> 오늘 드셨어요 · ' + esc(fmtTime(todayLast.ts)) + '</p>'
         : '<p class="check-line none">오늘 아직 기록이 없어요</p>';
+      body = '<div class="check-row">' + checkLine + actions + '</div>';
     } else {
       var intervalMs = med.intervalHours * 3600 * 1000;
       var ready = true;
@@ -404,27 +419,36 @@
       var dashoffset = ready ? 0 : C * (1 - frac);
 
       var remainRing = (function () {
-        var totalMin = Math.max(1, Math.ceil(remainMs / 60000));
+        var totalMin = Math.max(1, Math.ceil(remainMs / 60000)); // 남은 시간은 올림(보수적)
         var h = Math.floor(totalMin / 60);
         var m = totalMin % 60;
         if (h > 0 && m > 0) return h + '시간<br>' + m + '분';
         if (h > 0) return h + '시간';
         return m + '분';
       })();
-      var ringCenter = ready
-        ? '<div class="ring-center ready"><div class="big">지금 복용<br>가능</div></div>'
-        : '<div class="ring-center">' +
-            '<div class="big">' + remainRing + '</div>' +
-            '<div class="small">남음</div>' +
-          '</div>';
 
-      var statusMain, statusSub;
-      if (ready) {
+      // 보수적 표시: 오늘 최대치에 도달하면 간격과 무관하게 '오늘 최대' 상태로 고정
+      var ringCenter, ringCls, statusMain, statusSub;
+      if (reached) {
+        dashoffset = 0;
+        ringCls = ' ready';
+        ringCenter = '<div class="ring-center max"><div class="big">오늘<br>최대</div></div>';
+        statusMain = '오늘 최대치 ' + med.maxPerDay + med.unit + '에 도달했어요';
+        statusSub = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '';
+      } else if (ready) {
+        ringCls = ' ready';
+        ringCenter = '<div class="ring-center ready"><div class="big">지금 복용<br>가능</div></div>';
         statusMain = '<span class="hl">지금 복용 가능</span>해요';
         statusSub = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '아직 복용 기록이 없어요';
       } else {
+        ringCls = '';
+        ringCenter =
+          '<div class="ring-center">' +
+            '<div class="big">' + remainRing + '</div>' +
+            '<div class="small">남음</div>' +
+          '</div>';
         statusMain = '다음 복용 가능까지<br><span class="hl">' + esc(fmtRemain(remainMs)) + ' 남음</span>';
-        statusSub = esc(fmtTime(last.ts + intervalMs)) + ' 이후 가능';
+        statusSub = esc(fmtTime(last.ts + intervalMs)) + ' 이후 · 마지막 ' + esc(fmtTime(last.ts));
       }
 
       body =
@@ -432,7 +456,7 @@
           '<div class="ring-wrap">' +
             '<svg viewBox="0 0 120 120" aria-hidden="true">' +
               '<circle class="ring-bg" cx="60" cy="60" r="54"></circle>' +
-              '<circle class="ring-fg' + (ready ? ' ready' : '') + '" cx="60" cy="60" r="54" ' +
+              '<circle class="ring-fg' + ringCls + '" cx="60" cy="60" r="54" ' +
                 'stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + dashoffset.toFixed(2) + '" ' +
                 'transform="rotate(-90 60 60)"></circle>' +
             '</svg>' +
@@ -440,7 +464,8 @@
           '</div>' +
           '<div class="med-status">' +
             '<p class="status-main">' + statusMain + '</p>' +
-            '<p class="status-sub">' + statusSub + '</p>' +
+            (statusSub ? '<p class="status-sub">' + statusSub + '</p>' : '') +
+            actions +
           '</div>' +
         '</div>';
     }
@@ -448,12 +473,10 @@
     var warn = '';
     if (exceeded) {
       warn = '<div class="warn-banner">오늘 최대치 ' + med.maxPerDay + med.unit + ' 초과 — 현재 ' + todays.length + med.unit + '</div>';
-    } else if (reached) {
-      warn = '<div class="warn-banner">오늘 최대치 ' + med.maxPerDay + med.unit + '에 도달했어요</div>';
     }
 
-    // 하단 행: 왼쪽 시간 정보 · 오른쪽 작은 기록 버튼
-    var foot;
+    // 시각 수정 중일 때만 카드 아래에 입력 행 표시
+    var foot = '';
     var editing = last && state.timeEdit && state.timeEdit.kind === 'dose' && state.timeEdit.id === last.id;
     if (editing) {
       foot =
@@ -461,22 +484,6 @@
           '<input type="time" id="te-input" value="' + timeInputValue(last.ts) + '">' +
           '<button class="pill-btn" data-te-save="' + esc(last.id) + '">저장</button>' +
           '<button class="text-btn" data-te-cancel>닫기</button>' +
-        '</div>';
-    } else {
-      var links = [];
-      if (last) {
-        if (now - last.ts < UNDO_WINDOW_MS) {
-          links.push('<button class="text-btn" data-undo="' + esc(last.id) + '">취소</button>');
-        }
-        links.push('<button class="text-btn" data-edit-time="' + esc(last.id) + '">시각 수정</button>');
-      }
-      foot =
-        '<div class="card-row">' +
-          '<div class="cr-left">' +
-            '<div class="cr-time">' + (last ? '마지막 ' + esc(fmtTime(last.ts)) : '기록 없음') + '</div>' +
-            (links.length ? '<div class="cr-links">' + links.join('') + '</div>' : '') +
-          '</div>' +
-          '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + (isCheck ? '복용 체크' : '복용 기록') + '</button>' +
         '</div>';
     }
 
