@@ -221,11 +221,7 @@ input, select {
 
 .ring-wrap { position: relative; width: 104px; height: 104px; flex-shrink: 0; }
 .ring-wrap.sm { width: 84px; height: 84px; }
-.ring-wrap.sm .ring-center { padding: 10px; }
-.ring-wrap.sm .ring-center .big { font-size: 13px; }
-.ring-wrap.sm .ring-center .small { font-size: 9px; }
-.ring-wrap.sm .ring-center.ready .big,
-.ring-wrap.sm .ring-center.max .big { font-size: 11.5px; }
+.ring-wrap.sm .ring-center { padding: 8px; }
 .ring-wrap svg { width: 100%; height: 100%; display: block; }
 .ring-bg { fill: none; stroke: var(--line); stroke-width: 8; }
 .ring-fg {
@@ -246,10 +242,18 @@ input, select {
   text-align: center;
   padding: 14px;
 }
-.ring-center .big { font-size: 17px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.15; }
-.ring-center .small { font-size: 10px; color: var(--text-dim); font-weight: 600; margin-top: 1px; }
-.ring-center.ready .big { font-size: 13px; color: var(--accent); }
-.ring-center.max .big { font-size: 14px; color: var(--accent); }
+.ring-center .rc-label { font-size: 10px; color: var(--text-dim); font-weight: 700; }
+.ring-center .rc-time {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.ring-center.ready .rc-time,
+.ring-center.max .rc-time { color: var(--accent); }
+.ring-wrap.sm .ring-center .rc-label { font-size: 8.5px; }
+.ring-wrap.sm .ring-center .rc-time { font-size: 12.5px; }
 
 /* 기록 버튼 정렬 (상세 화면) */
 .status-actions {

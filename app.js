@@ -431,24 +431,35 @@
       '</svg>';
   }
 
-  // 홈 카드용 소형 링 + 상태 문구
+  // 홈 카드용 소형 링 — 원 안엔 시각(H:MM:SS), 원 밖엔 남은 시간(n시간 n분)
   function buildIntervalRing(med, sizeClass) {
     var s = computeInterval(med);
-    var ringCenter, statusLine;
+    var innerLabel, innerTime, centerCls, statusLine;
     if (s.reached) {
-      ringCenter = '<div class="ring-center max"><div class="big">오늘<br>최대</div></div>';
-      statusLine = s.last ? '마지막 복용 ' + esc(fmtTime(s.last.ts)) : '';
+      centerCls = ' max';
+      innerLabel = s.last ? '마지막' : '';
+      innerTime = s.last ? esc(fmtTime(s.last.ts)) : '오늘<br>최대';
+      statusLine = '<span class="hl">오늘 최대</span>';
     } else if (s.ready) {
-      ringCenter = '<div class="ring-center ready"><div class="big">지금 복용<br>가능</div></div>';
-      statusLine = s.last ? '마지막 복용 ' + esc(fmtTime(s.last.ts)) : '아직 복용 기록이 없어요';
+      centerCls = ' ready';
+      if (s.last) {
+        innerLabel = '마지막'; innerTime = esc(fmtTime(s.last.ts));
+        statusLine = '<span class="hl">지금 복용 가능</span>';
+      } else {
+        innerLabel = ''; innerTime = '지금<br>가능';
+        statusLine = '아직 복용 기록이 없어요';
+      }
     } else {
-      ringCenter =
-        '<div class="ring-center">' +
-          '<div class="big">' + remainLabel(s.remainMs, true) + '</div>' +
-          '<div class="small">남음</div>' +
-        '</div>';
-      statusLine = '<span class="hl">' + esc(fmtTime(s.last.ts + s.intervalMs)) + '</span> 이후 가능 · 마지막 ' + esc(fmtTime(s.last.ts));
+      centerCls = '';
+      innerLabel = '다음';
+      innerTime = esc(fmtTime(s.last.ts + s.intervalMs));
+      statusLine = '<span class="hl">' + esc(remainLabel(s.remainMs, false)) + ' 남음</span>';
     }
+    var ringCenter =
+      '<div class="ring-center' + centerCls + '">' +
+        (innerLabel ? '<div class="rc-label">' + innerLabel + '</div>' : '') +
+        '<div class="rc-time">' + innerTime + '</div>' +
+      '</div>';
     var ringHtml =
       '<div class="ring-wrap' + (sizeClass ? ' ' + sizeClass : '') + '">' +
         ringSvg(s) + ringCenter +
