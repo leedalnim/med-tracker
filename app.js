@@ -233,6 +233,22 @@
     }
     storage.set(KEY.period, days);
   }
+  // 기간(시작~종료)을 생리 일자들로 추가
+  function addPeriodRange(startKey, endKey) {
+    var days = getPeriodDays();
+    var k = startKey;
+    while (k <= endKey) {
+      if (days.indexOf(k) < 0) days.push(k);
+      k = addDays(k, 1);
+    }
+    storage.set(KEY.period, days);
+  }
+  // 에피소드(시작~종료)에 속한 일자 전체 삭제
+  function removePeriodRange(startKey, endKey) {
+    storage.set(KEY.period, getPeriodDays().filter(function (k) {
+      return k < startKey || k > endKey;
+    }));
+  }
   // 연속된 날들을 에피소드(한 번의 생리)로 묶기
   function periodEpisodes() {
     var days = getPeriodDays().slice().sort();
@@ -290,6 +306,7 @@
     if ('detailMedId' in opts) state.detailMedId = opts.detailMedId;
     if ('returnTo' in opts) state.returnTo = opts.returnTo;
     state.timeEdit = null;
+    state.periodAdd = false;
     render();
   }
 
@@ -303,6 +320,10 @@
       case 'medForm': renderMedForm(); break;
       case 'calendar': renderCalendar(); break;
       case 'medDetail': renderMedDetail(); break;
+      case 'period':
+        if (isPeriodOn()) { renderPeriod(); }
+        else { state.screen = 'home'; render(); }
+        break;
       default:
         if (mode === 'simple') renderSimpleHome();
         else renderTrackerHome();
@@ -383,11 +404,8 @@
       ? '오늘 ' + todays.length + '/' + med.maxPerDay
       : '오늘 ' + todays.length + '회';
 
-    // 기록 버튼은 가장 오른쪽에. 기록 수정·삭제는 카드 탭 → 상세의 복용 내역에서
-    var actions =
-      '<div class="status-actions">' +
-        '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>' +
-      '</div>';
+    var logBtn = '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>';
+    var editLink = '<button class="med-edit-link" data-editinfo="' + esc(med.id) + '">' + ICON.edit + '정보 수정</button>';
 
     var body = '';
     if (isCheck) {
@@ -397,7 +415,11 @@
       var checkLine = todayLast
         ? '<p class="check-line"><span class="ok">✓</span> 오늘 드셨어요 · ' + esc(fmtTime(todayLast.ts)) + '</p>'
         : '<p class="check-line none">오늘 아직 기록이 없어요</p>';
-      body = '<div class="check-row">' + checkLine + actions + '</div>';
+      body =
+        '<div class="check-row">' +
+          '<div>' + checkLine + editLink + '</div>' +
+          logBtn +
+        '</div>';
     } else {
       var intervalMs = med.intervalHours * 3600 * 1000;
       var ready = true;
@@ -443,21 +465,25 @@
         statusSub = esc(fmtTime(last.ts + intervalMs)) + ' 이후 · 마지막 ' + esc(fmtTime(last.ts));
       }
 
+      // 왼쪽: 링 + 그 아래 먹었어요 버튼 / 오른쪽: 상태 정보 + 정보 수정
       body =
         '<div class="med-body">' +
-          '<div class="ring-wrap">' +
-            '<svg viewBox="0 0 120 120" aria-hidden="true">' +
-              '<circle class="ring-bg" cx="60" cy="60" r="54"></circle>' +
-              '<circle class="ring-fg' + ringCls + '" cx="60" cy="60" r="54" ' +
-                'stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + dashoffset.toFixed(2) + '" ' +
-                'transform="rotate(-90 60 60)"></circle>' +
-            '</svg>' +
-            ringCenter +
+          '<div class="med-left">' +
+            '<div class="ring-wrap">' +
+              '<svg viewBox="0 0 120 120" aria-hidden="true">' +
+                '<circle class="ring-bg" cx="60" cy="60" r="54"></circle>' +
+                '<circle class="ring-fg' + ringCls + '" cx="60" cy="60" r="54" ' +
+                  'stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + dashoffset.toFixed(2) + '" ' +
+                  'transform="rotate(-90 60 60)"></circle>' +
+              '</svg>' +
+              ringCenter +
+            '</div>' +
+            logBtn +
           '</div>' +
           '<div class="med-status">' +
             '<p class="status-main">' + statusMain + '</p>' +
             (statusSub ? '<p class="status-sub">' + statusSub + '</p>' : '') +
-            actions +
+            editLink +
           '</div>' +
         '</div>';
     }
@@ -497,6 +523,11 @@
         logDose(btn.getAttribute('data-log'));
         state.timeEdit = null;
         renderTrackerHome();
+      });
+    });
+    app.querySelectorAll('[data-editinfo]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        go('medForm', { editMedId: btn.getAttribute('data-editinfo'), returnTo: 'home' });
       });
     });
   }
@@ -794,29 +825,6 @@
     html += '</div></div>';
 
     html += dayPanelHtml(state.selKey, periodOn, periodSet);
-
-    // 생리 기록 목록 (최근 회차부터)
-    if (periodOn && stats && stats.episodes.length) {
-      var eps = stats.episodes;
-      var rows = '';
-      for (var ei = eps.length - 1; ei >= 0; ei--) {
-        var ep = eps[ei];
-        var len = diffDays(ep.start, ep.end) + 1;
-        var cycleTxt = ei > 0 ? '주기 ' + diffDays(eps[ei - 1].start, ep.start) + '일' : '';
-        var range = ep.start === ep.end
-          ? esc(fmtKeyShort(ep.start).replace(' · 오늘', ''))
-          : esc(fmtKeyShort(ep.start).replace(' · 오늘', '')) + ' ~ ' + esc(fmtKeyShort(ep.end).replace(' · 오늘', ''));
-        rows +=
-          '<div class="dose-row">' +
-            '<span class="d-name">' + range + '</span>' +
-            '<span class="d-time">' + len + '일' + (cycleTxt ? ' · ' + cycleTxt : '') + '</span>' +
-          '</div>';
-      }
-      html +=
-        '<h2 class="section-title">생리 기록</h2>' +
-        '<section class="card">' + rows + '</section>';
-    }
-
     html += bottomNavHtml('calendar');
     app.innerHTML = html;
 
@@ -927,6 +935,124 @@
     });
   }
 
+  /* ===== 생리 주기 화면 ===== */
+  function renderPeriod() {
+    app.className = '';
+    var stats = cycleStats();
+    var eps = stats ? stats.episodes : [];
+    var tk = todayKey();
+
+    var html =
+      '<header class="screen-head">' +
+        '<h1>생리 주기</h1>' +
+        '<p class="sub">기록한 날짜만으로 계산해요</p>' +
+      '</header>';
+
+    // 예측 요약
+    if (stats && stats.avgCycle) {
+      var dd = diffDays(tk, stats.nextStart);
+      var ddLabel = dd > 0 ? 'D-' + dd : (dd === 0 ? '오늘' : dd * -1 + '일 지남');
+      var lenSum = 0;
+      eps.forEach(function (e) { lenSum += diffDays(e.start, e.end) + 1; });
+      var avgLen = Math.max(1, Math.round(lenSum / eps.length));
+      html +=
+        '<div class="card">' +
+          '<div class="detail-stats">' +
+            '<div class="ds-item"><div class="ds-num">' + ddLabel + '</div><div class="ds-label">다음 예정일</div></div>' +
+            '<div class="ds-item"><div class="ds-num">' + stats.avgCycle + '일</div><div class="ds-label">평균 주기</div></div>' +
+            '<div class="ds-item"><div class="ds-num">' + avgLen + '일</div><div class="ds-label">평균 기간</div></div>' +
+          '</div>' +
+          '<p class="detail-status">다음 예정일 <b>' + esc(fmtKeyShort(stats.nextStart).replace(' · 오늘', '')) + '</b> · 최근 기록 평균 기준</p>' +
+        '</div>';
+    } else {
+      html +=
+        '<div class="cycle-info"><span class="dot"></span>기록이 2번 이상 쌓이면 다음 예정일을 계산해요</div>';
+    }
+
+    // 기록 추가
+    if (state.periodAdd) {
+      html +=
+        '<div class="card">' +
+          '<div class="form-row">' +
+            '<div class="form-field"><label for="p-start">시작일</label>' +
+              '<input id="p-start" type="date" max="' + tk + '"></div>' +
+            '<div class="form-field"><label for="p-end">종료일</label>' +
+              '<input id="p-end" type="date" max="' + tk + '"></div>' +
+          '</div>' +
+          '<p class="form-error" id="p-error"></p>' +
+          '<div class="form-actions">' +
+            '<button class="pill-btn secondary" id="p-cancel">취소</button>' +
+            '<button class="pill-btn" id="p-save">저장</button>' +
+          '</div>' +
+        '</div>';
+    } else {
+      html += '<button class="pill-btn secondary" id="p-add">+ 지난 생리 기록 추가</button>';
+    }
+
+    // 기록 목록 (최근 회차부터)
+    html += '<h2 class="section-title">기록 (' + eps.length + '회)</h2>';
+    if (!eps.length) {
+      html += '<div class="empty">아직 기록이 없어요.<br>달력에서 날짜를 누르거나 위 버튼으로 추가해 주세요.</div>';
+    } else {
+      var rows = '';
+      for (var ei = eps.length - 1; ei >= 0; ei--) {
+        var ep = eps[ei];
+        var len = diffDays(ep.start, ep.end) + 1;
+        var cycleTxt = ei > 0 ? '주기 ' + diffDays(eps[ei - 1].start, ep.start) + '일' : '';
+        var range = ep.start === ep.end
+          ? esc(fmtKeyShort(ep.start).replace(' · 오늘', ''))
+          : esc(fmtKeyShort(ep.start).replace(' · 오늘', '')) + ' ~ ' + esc(fmtKeyShort(ep.end).replace(' · 오늘', ''));
+        rows +=
+          '<div class="dose-row">' +
+            '<div><div class="d-name">' + range + '</div>' +
+            '<div class="d-time">' + len + '일' + (cycleTxt ? ' · ' + cycleTxt : '') + '</div></div>' +
+            '<button class="ico-btn danger" data-ep-del="' + ep.start + '|' + ep.end + '" aria-label="기록 삭제">' + ICON.trash + '</button>' +
+          '</div>';
+      }
+      html += '<section class="card">' + rows + '</section>';
+    }
+
+    html += bottomNavHtml('period');
+    app.innerHTML = html;
+
+    var addBtn = document.getElementById('p-add');
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        state.periodAdd = true;
+        renderPeriod();
+      });
+    }
+    var saveBtn = document.getElementById('p-save');
+    if (saveBtn) {
+      document.getElementById('p-cancel').addEventListener('click', function () {
+        state.periodAdd = false;
+        renderPeriod();
+      });
+      saveBtn.addEventListener('click', function () {
+        var start = document.getElementById('p-start').value;
+        var end = document.getElementById('p-end').value || start;
+        var errEl = document.getElementById('p-error');
+        function fail(msg) { errEl.textContent = msg; errEl.style.display = 'block'; }
+        if (!start) { fail('시작일을 선택해 주세요.'); return; }
+        if (end < start) { fail('종료일이 시작일보다 빨라요.'); return; }
+        if (start > tk || end > tk) { fail('미래 날짜는 기록할 수 없어요.'); return; }
+        addPeriodRange(start, end);
+        state.periodAdd = false;
+        renderPeriod();
+      });
+    }
+    app.querySelectorAll('[data-ep-del]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var p = btn.getAttribute('data-ep-del').split('|');
+        if (window.confirm('이 생리 기록을 삭제할까요?')) {
+          removePeriodRange(p[0], p[1]);
+          renderPeriod();
+        }
+      });
+    });
+    bindBottomNav();
+  }
+
   /* ===== 설정 ===== */
   function renderSettings() {
     app.className = 'no-nav';
@@ -937,11 +1063,6 @@
       '<div class="back-head">' +
         '<button id="back" aria-label="뒤로">←</button>' +
         '<h1>설정</h1>' +
-      '</div>' +
-      '<div class="settings-group">' +
-        '<h2>화면 모드</h2>' +
-        modeOptionHtml('tracker', '간격 트래커', '다음 복용 가능 시각을 계산해서 알려드려요', isTracker) +
-        modeOptionHtml('simple', '심플 체크', '아침 · 점심 · 저녁 먹었는지만 확인해요', !isTracker) +
       '</div>';
 
     if (isTracker) {
@@ -977,6 +1098,16 @@
     }
 
     html +=
+      '<div class="settings-group"><h2>화면</h2>' +
+        '<button class="toggle-row" id="mode-switch">' +
+          '<div><div class="m-title">' + (isTracker ? '심플 체크 모드로 전환' : '간격 트래커 모드로 전환') + '</div>' +
+          '<div class="m-desc">' + (isTracker
+            ? '아침 · 점심 · 저녁 큰 버튼만 있는 화면으로 바꿔요'
+            : '간격 계산 · 달력이 있는 화면으로 바꿔요') + '</div></div>' +
+          '<span class="check">→</span>' +
+        '</button></div>';
+
+    html +=
       '<p class="settings-note">모든 데이터는 이 기기의 브라우저에만 저장돼요. 서버로 전송되지 않아요.<br>' +
       '이 앱은 사용자가 등록한 간격·최대치·날짜를 기준으로 계산만 해요.</p>';
 
@@ -984,11 +1115,9 @@
 
     document.getElementById('back').addEventListener('click', function () { go('home'); });
 
-    app.querySelectorAll('.mode-option').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        setMode(btn.getAttribute('data-mode'));
-        renderSettings();
-      });
+    document.getElementById('mode-switch').addEventListener('click', function () {
+      setMode(isTracker ? 'simple' : 'tracker');
+      go('home');
     });
 
     if (isTracker) {
@@ -1014,18 +1143,6 @@
         });
       });
     }
-  }
-
-  function modeOptionHtml(modeKey, title, desc, active) {
-    return (
-      '<button class="mode-option' + (active ? ' active' : '') + '" data-mode="' + modeKey + '">' +
-        '<div>' +
-          '<div class="m-title">' + title + '</div>' +
-          '<div class="m-desc">' + desc + '</div>' +
-        '</div>' +
-        (active ? '<span class="check">✓</span>' : '') +
-      '</button>'
-    );
   }
 
   /* ===== 약 추가/수정 폼 ===== */
@@ -1143,6 +1260,7 @@
     pillPlus: '<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.2" y="10.6" width="12.6" height="6.6" rx="3.3" transform="rotate(-45 9.5 13.9)"/><path d="M7.2 11.6l4.6 4.6"/><path d="M18.5 3.5v6M15.5 6.5h6"/></svg>',
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4.5-1L20 7.5a2.1 2.1 0 0 0-3-3L5.5 16 4 20z"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/><path d="M10 11v6M14 11v6"/></svg>',
+    drop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5c3.5 4.2 6 7.3 6 10.2a6 6 0 0 1-12 0c0-2.9 2.5-6 6-10.2z"/></svg>',
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.2 12 4l9 7.2"/><path d="M5.5 10v10h13V10"/></svg>',
     cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"/></svg>',
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/></svg>'
@@ -1156,6 +1274,7 @@
     return '<nav class="bottom-nav">' +
       item('home', ICON.home, '홈') +
       item('calendar', ICON.cal, '달력') +
+      (isPeriodOn() ? item('period', ICON.drop, '생리') : '') +
       item('settings', ICON.gear, '설정') +
       '</nav>';
   }
