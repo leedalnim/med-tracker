@@ -24,16 +24,18 @@
 
   var KEY = {
     mode: 'mt.mode',          // 'tracker' | 'simple'
-    meds: 'mt.meds',          // [{id, name, unit, intervalHours, maxPerDay}]
+    meds: 'mt.meds',          // [{id, name, unit, type, intervalHours, maxPerDay}]
     doses: 'mt.doses',        // [{id, medId, ts}]
     checks: 'mt.checks',      // [{slot, ts, dateKey}]
     period: 'mt.period',      // ['YYYY-MM-DD', ...] 생리로 표시한 날
-    periodOn: 'mt.periodOn'   // 달력에 생리주기 기능 표시 여부
+    periodOn: 'mt.periodOn',  // 달력에 생리주기 기능 표시 여부
+    migr: 'mt.migr'           // 데이터 마이그레이션 버전
   };
 
+  // type: 'interval' = 간격 트래커(다음 복용 가능 계산) / 'check' = 복용 체크(먹었는지만)
   var PRESET_MEDS = [
-    { id: 'preset-tylenol', name: '타이레놀 500mg', unit: '정', intervalHours: 4, maxPerDay: 8 },
-    { id: 'preset-ezn6pro', name: '이지엔6프로', unit: '캡슐', intervalHours: 4, maxPerDay: 6 }
+    { id: 'preset-tylenol', name: '타이레놀 500mg', unit: '정', type: 'interval', intervalHours: 4, maxPerDay: 8 },
+    { id: 'preset-ezn6pro', name: '이지엔6프로', unit: '캡슐', type: 'interval', intervalHours: 4, maxPerDay: 4 }
   ];
 
   var SLOTS = [
@@ -117,6 +119,29 @@
     return storage.get(KEY.meds, []);
   }
   function saveMeds(meds) { storage.set(KEY.meds, meds); }
+  function medById(id) {
+    return getMeds().find(function (m) { return m.id === id; }) || null;
+  }
+
+  // 기존 저장 데이터 보정: type 기본값, 이지엔6프로 최대치(허가 용량 1일 4캡슐) 수정
+  function migrate() {
+    var ver = storage.get(KEY.migr, 0);
+    if (ver >= 2) return;
+    if (storage.has(KEY.meds)) {
+      var meds = storage.get(KEY.meds, []).map(function (m) {
+        var out = {
+          id: m.id, name: m.name, unit: m.unit,
+          type: m.type || 'interval',
+          intervalHours: m.intervalHours != null ? m.intervalHours : null,
+          maxPerDay: m.maxPerDay != null ? m.maxPerDay : null
+        };
+        if (ver < 1 && m.id === 'preset-ezn6pro' && m.maxPerDay === 6) out.maxPerDay = 4;
+        return out;
+      });
+      storage.set(KEY.meds, meds);
+    }
+    storage.set(KEY.migr, 2);
+  }
 
   function getDoses() { return storage.get(KEY.doses, []); }
   function saveDoses(doses) { storage.set(KEY.doses, doses); }
@@ -247,6 +272,8 @@
   var state = {
     screen: 'home',
     editMedId: null,
+    detailMedId: null,
+    returnTo: 'home',             // medForm에서 돌아갈 화면
     timeEdit: null,               // {kind:'dose'|'check', id}
     calY: now0.getFullYear(),
     calM: now0.getMonth(),        // 0-11
@@ -256,8 +283,12 @@
   var tickTimer = null;
 
   function go(screen, opts) {
+    opts = opts || {};
     state.screen = screen;
-    state.editMedId = (opts && opts.editMedId) || null;
+    if ('editMedId' in opts) state.editMedId = opts.editMedId;
+    else if (screen !== 'medForm') state.editMedId = null;
+    if ('detailMedId' in opts) state.detailMedId = opts.detailMedId;
+    if ('returnTo' in opts) state.returnTo = opts.returnTo;
     state.timeEdit = null;
     render();
   }
@@ -271,6 +302,7 @@
       case 'settings': renderSettings(); break;
       case 'medForm': renderMedForm(); break;
       case 'calendar': renderCalendar(); break;
+      case 'medDetail': renderMedDetail(); break;
       default:
         if (mode === 'simple') renderSimpleHome();
         else renderTrackerHome();
@@ -326,7 +358,7 @@
 
     bindMedCards();
     document.getElementById('add-med').addEventListener('click', function () {
-      go('medForm');
+      go('medForm', { editMedId: null, returnTo: 'home' });
     });
     bindBottomNav();
 
@@ -337,86 +369,65 @@
 
   function medCardHtml(med) {
     var now = Date.now();
+    var isCheck = med.type === 'check';
     var last = lastDoseForMed(med.id);
     var todays = todayDosesForMed(med.id);
-    var intervalMs = med.intervalHours * 3600 * 1000;
 
-    var ready = true;
-    var remainMs = 0;
-    if (last) {
-      var nextAt = last.ts + intervalMs;
-      if (nextAt > now) { ready = false; remainMs = nextAt - now; }
-    }
+    var meta = isCheck
+      ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
+      : '간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
 
-    var reached = todays.length >= med.maxPerDay;
-    var exceeded = todays.length > med.maxPerDay;
+    var reached = med.maxPerDay ? todays.length >= med.maxPerDay : false;
+    var exceeded = med.maxPerDay ? todays.length > med.maxPerDay : false;
+    var badge = med.maxPerDay
+      ? '오늘 ' + todays.length + '/' + med.maxPerDay
+      : '오늘 ' + todays.length + '회';
 
-    /* 카운트다운 링: 남은 시간에 비례해 호가 줄어듦 */
-    var C = 2 * Math.PI * 54;
-    var frac = ready ? 1 : Math.min(1, remainMs / intervalMs);
-    var dashoffset = ready ? 0 : C * (1 - frac);
-
-    // 링 중앙은 "12시간" / "6분"처럼 줄을 나눠 표시
-    var remainRing = (function () {
-      var totalMin = Math.max(1, Math.ceil(remainMs / 60000));
-      var h = Math.floor(totalMin / 60);
-      var m = totalMin % 60;
-      if (h > 0 && m > 0) return h + '시간<br>' + m + '분';
-      if (h > 0) return h + '시간';
-      return m + '분';
-    })();
-    var ringCenter = ready
-      ? '<div class="ring-center ready"><div class="big">지금 복용<br>가능</div></div>'
-      : '<div class="ring-center">' +
-          '<div class="big">' + remainRing + '</div>' +
-          '<div class="small">남음</div>' +
-        '</div>';
-
-    var statusMain, statusSub;
-    if (ready) {
-      statusMain = '<span class="hl">지금 복용 가능</span>해요';
-      statusSub = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '아직 복용 기록이 없어요';
+    var body = '';
+    if (isCheck) {
+      var todayLast = todays.length
+        ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
+        : null;
+      body = todayLast
+        ? '<p class="check-line"><span class="ok">✓</span> 오늘 드셨어요 · ' + esc(fmtTime(todayLast.ts)) + '</p>'
+        : '<p class="check-line none">오늘 아직 기록이 없어요</p>';
     } else {
-      statusMain = '다음 복용 가능까지<br><span class="hl">' + esc(fmtRemain(remainMs)) + ' 남음</span>';
-      statusSub = esc(fmtTime(last.ts + intervalMs)) + ' 이후 가능';
-    }
-
-    var warn = '';
-    if (exceeded) {
-      warn = '<div class="warn-banner">오늘 최대치 ' + med.maxPerDay + med.unit + ' 초과 — 현재 ' + todays.length + med.unit + '</div>';
-    } else if (reached) {
-      warn = '<div class="warn-banner">오늘 최대치 ' + med.maxPerDay + med.unit + '에 도달했어요</div>';
-    }
-
-    var foot = '';
-    if (last) {
-      var editing = state.timeEdit && state.timeEdit.kind === 'dose' && state.timeEdit.id === last.id;
-      if (editing) {
-        foot =
-          '<div class="time-edit">' +
-            '<input type="time" id="te-input" value="' + timeInputValue(last.ts) + '">' +
-            '<button class="pill-btn" data-te-save="' + esc(last.id) + '">저장</button>' +
-            '<button class="text-btn" data-te-cancel>닫기</button>' +
-          '</div>';
-      } else {
-        var parts = [];
-        if (now - last.ts < UNDO_WINDOW_MS) {
-          parts.push('<button class="text-btn" data-undo="' + esc(last.id) + '">방금 기록 취소</button>');
-        }
-        parts.push('<button class="text-btn" data-edit-time="' + esc(last.id) + '">마지막 시각 수정</button>');
-        foot = '<div class="card-foot">' + parts.join('') + '</div>';
+      var intervalMs = med.intervalHours * 3600 * 1000;
+      var ready = true;
+      var remainMs = 0;
+      if (last) {
+        var nextAt = last.ts + intervalMs;
+        if (nextAt > now) { ready = false; remainMs = nextAt - now; }
       }
-    }
+      var C = 2 * Math.PI * 54;
+      var frac = ready ? 1 : Math.min(1, remainMs / intervalMs);
+      var dashoffset = ready ? 0 : C * (1 - frac);
 
-    return (
-      '<section class="card" data-med="' + esc(med.id) + '">' +
-        '<div class="med-head">' +
-          '<div>' +
-            '<div class="med-name">' + esc(med.name) + '</div>' +
-            '<div class="med-meta">간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit + '</div>' +
-          '</div>' +
-          '<span class="badge' + (reached ? ' filled' : '') + '">오늘 ' + todays.length + '/' + med.maxPerDay + '</span>' +
-        '</div>' +
+      var remainRing = (function () {
+        var totalMin = Math.max(1, Math.ceil(remainMs / 60000));
+        var h = Math.floor(totalMin / 60);
+        var m = totalMin % 60;
+        if (h > 0 && m > 0) return h + '시간<br>' + m + '분';
+        if (h > 0) return h + '시간';
+        return m + '분';
+      })();
+      var ringCenter = ready
+        ? '<div class="ring-center ready"><div class="big">지금 복용<br>가능</div></div>'
+        : '<div class="ring-center">' +
+            '<div class="big">' + remainRing + '</div>' +
+            '<div class="small">남음</div>' +
+          '</div>';
+
+      var statusMain, statusSub;
+      if (ready) {
+        statusMain = '<span class="hl">지금 복용 가능</span>해요';
+        statusSub = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '아직 복용 기록이 없어요';
+      } else {
+        statusMain = '다음 복용 가능까지<br><span class="hl">' + esc(fmtRemain(remainMs)) + ' 남음</span>';
+        statusSub = esc(fmtTime(last.ts + intervalMs)) + ' 이후 가능';
+      }
+
+      body =
         '<div class="med-body">' +
           '<div class="ring-wrap">' +
             '<svg viewBox="0 0 120 120" aria-hidden="true">' +
@@ -431,8 +442,54 @@
             '<p class="status-main">' + statusMain + '</p>' +
             '<p class="status-sub">' + statusSub + '</p>' +
           '</div>' +
+        '</div>';
+    }
+
+    var warn = '';
+    if (exceeded) {
+      warn = '<div class="warn-banner">오늘 최대치 ' + med.maxPerDay + med.unit + ' 초과 — 현재 ' + todays.length + med.unit + '</div>';
+    } else if (reached) {
+      warn = '<div class="warn-banner">오늘 최대치 ' + med.maxPerDay + med.unit + '에 도달했어요</div>';
+    }
+
+    // 하단 행: 왼쪽 시간 정보 · 오른쪽 작은 기록 버튼
+    var foot;
+    var editing = last && state.timeEdit && state.timeEdit.kind === 'dose' && state.timeEdit.id === last.id;
+    if (editing) {
+      foot =
+        '<div class="time-edit">' +
+          '<input type="time" id="te-input" value="' + timeInputValue(last.ts) + '">' +
+          '<button class="pill-btn" data-te-save="' + esc(last.id) + '">저장</button>' +
+          '<button class="text-btn" data-te-cancel>닫기</button>' +
+        '</div>';
+    } else {
+      var links = [];
+      if (last) {
+        if (now - last.ts < UNDO_WINDOW_MS) {
+          links.push('<button class="text-btn" data-undo="' + esc(last.id) + '">취소</button>');
+        }
+        links.push('<button class="text-btn" data-edit-time="' + esc(last.id) + '">시각 수정</button>');
+      }
+      foot =
+        '<div class="card-row">' +
+          '<div class="cr-left">' +
+            '<div class="cr-time">' + (last ? '마지막 ' + esc(fmtTime(last.ts)) : '기록 없음') + '</div>' +
+            (links.length ? '<div class="cr-links">' + links.join('') + '</div>' : '') +
+          '</div>' +
+          '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + (isCheck ? '복용 체크' : '복용 기록') + '</button>' +
+        '</div>';
+    }
+
+    return (
+      '<section class="card med-card" data-med="' + esc(med.id) + '" role="button" tabindex="0">' +
+        '<div class="med-head">' +
+          '<div>' +
+            '<div class="med-name">' + esc(med.name) + '</div>' +
+            '<div class="med-meta">' + meta + '</div>' +
+          '</div>' +
+          '<span class="badge' + (reached ? ' filled' : '') + '">' + badge + '</span>' +
         '</div>' +
-        '<button class="pill-btn" data-log="' + esc(med.id) + '">복용 기록하기</button>' +
+        body +
         warn +
         foot +
       '</section>'
@@ -440,6 +497,12 @@
   }
 
   function bindMedCards() {
+    app.querySelectorAll('[data-med]').forEach(function (card) {
+      card.addEventListener('click', function (e) {
+        if (e.target.closest('button') || e.target.closest('input')) return;
+        go('medDetail', { detailMedId: card.getAttribute('data-med') });
+      });
+    });
     app.querySelectorAll('[data-log]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         logDose(btn.getAttribute('data-log'));
@@ -474,6 +537,134 @@
       btn.addEventListener('click', function () {
         state.timeEdit = null;
         renderTrackerHome();
+      });
+    });
+  }
+
+  /* ===== 약 상세 ===== */
+  function renderMedDetail() {
+    var med = medById(state.detailMedId);
+    if (!med) { go('home'); return; }
+    app.className = 'no-nav';
+
+    var todays = todayDosesForMed(med.id);
+    var isCheck = med.type === 'check';
+
+    var summary =
+      '<div class="detail-stats">' +
+        '<div class="ds-item"><div class="ds-num">' + todays.length + '</div><div class="ds-label">오늘 복용</div></div>' +
+        (med.maxPerDay
+          ? '<div class="ds-item"><div class="ds-num">' + med.maxPerDay + '</div><div class="ds-label">1일 최대</div></div>'
+          : '') +
+        (!isCheck
+          ? '<div class="ds-item"><div class="ds-num">' + med.intervalHours + '시간</div><div class="ds-label">최소 간격</div></div>'
+          : '') +
+      '</div>';
+
+    var statusLine = '';
+    if (!isCheck) {
+      var last = lastDoseForMed(med.id);
+      if (last) {
+        var nextAt = last.ts + med.intervalHours * 3600 * 1000;
+        statusLine = nextAt > Date.now()
+          ? '<p class="detail-status">다음 복용 가능: <b>' + esc(fmtTime(nextAt)) + '</b> (' + esc(fmtRemain(nextAt - Date.now())) + ' 남음)</p>'
+          : '<p class="detail-status"><b class="hl">지금 복용 가능</b>해요</p>';
+      }
+    }
+
+    // 최근 30일 기록을 날짜별로
+    var cutoff = addDays(todayKey(), -30);
+    var doses = dosesForMed(med.id)
+      .filter(function (d) { return dateKey(d.ts) >= cutoff; })
+      .sort(function (a, b) { return b.ts - a.ts; });
+
+    var listHtml = '';
+    if (!doses.length) {
+      listHtml = '<div class="empty">최근 30일 기록이 없어요.</div>';
+    } else {
+      var curKey = null;
+      doses.forEach(function (d) {
+        var k = dateKey(d.ts);
+        if (k !== curKey) {
+          curKey = k;
+          var dayCount = doses.filter(function (x) { return dateKey(x.ts) === k; }).length;
+          listHtml += '<div class="history-date">' + esc(fmtKeyShort(k)) + ' · ' + dayCount + med.unit + '</div>';
+        }
+        var editing = state.timeEdit && state.timeEdit.kind === 'dose' && state.timeEdit.id === d.id;
+        if (editing) {
+          listHtml +=
+            '<div class="time-edit">' +
+              '<input type="time" id="te-input" value="' + timeInputValue(d.ts) + '">' +
+              '<button class="pill-btn" data-md-save="' + esc(d.id) + '">저장</button>' +
+              '<button class="text-btn" data-md-cancel>닫기</button>' +
+            '</div>';
+        } else {
+          listHtml +=
+            '<div class="dose-row">' +
+              '<span class="d-time">' + esc(fmtTime(d.ts)) + '</span>' +
+              '<span class="d-actions">' +
+                '<button class="text-btn" data-md-edit="' + esc(d.id) + '">수정</button>' +
+                '<button class="text-btn danger" data-md-del="' + esc(d.id) + '">삭제</button>' +
+              '</span>' +
+            '</div>';
+        }
+      });
+    }
+
+    app.innerHTML =
+      '<div class="back-head">' +
+        '<button id="back" aria-label="뒤로">←</button>' +
+        '<div>' +
+          '<h1>' + esc(med.name) + '</h1>' +
+          '<p class="bh-sub">' + (isCheck ? '복용 체크' : '간격 트래커') + '</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card">' +
+        summary +
+        statusLine +
+        '<div class="card-row">' +
+          '<button class="text-btn" id="edit-med-info">약 정보 수정</button>' +
+          '<button class="pill-btn compact" id="detail-log">' + (isCheck ? '복용 체크' : '복용 기록') + '</button>' +
+        '</div>' +
+      '</div>' +
+      '<h2 class="section-title">복용 내역 (최근 30일)</h2>' +
+      '<div class="card">' + listHtml + '</div>';
+
+    document.getElementById('back').addEventListener('click', function () { go('home'); });
+    document.getElementById('detail-log').addEventListener('click', function () {
+      logDose(med.id);
+      renderMedDetail();
+    });
+    document.getElementById('edit-med-info').addEventListener('click', function () {
+      go('medForm', { editMedId: med.id, returnTo: 'medDetail' });
+    });
+    app.querySelectorAll('[data-md-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.timeEdit = { kind: 'dose', id: btn.getAttribute('data-md-edit') };
+        renderMedDetail();
+      });
+    });
+    app.querySelectorAll('[data-md-del]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        removeDose(btn.getAttribute('data-md-del'));
+        renderMedDetail();
+      });
+    });
+    app.querySelectorAll('[data-md-save]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var val = document.getElementById('te-input').value;
+        if (val && !setDoseTime(btn.getAttribute('data-md-save'), val)) {
+          window.alert('지금보다 미래 시각으로는 저장할 수 없어요.');
+          return;
+        }
+        state.timeEdit = null;
+        renderMedDetail();
+      });
+    });
+    app.querySelectorAll('[data-md-cancel]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.timeEdit = null;
+        renderMedDetail();
       });
     });
   }
@@ -644,6 +835,29 @@
     html += '</div></div>';
 
     html += dayPanelHtml(state.selKey, periodOn, periodSet);
+
+    // 생리 기록 목록 (최근 회차부터)
+    if (periodOn && stats && stats.episodes.length) {
+      var eps = stats.episodes;
+      var rows = '';
+      for (var ei = eps.length - 1; ei >= 0; ei--) {
+        var ep = eps[ei];
+        var len = diffDays(ep.start, ep.end) + 1;
+        var cycleTxt = ei > 0 ? '주기 ' + diffDays(eps[ei - 1].start, ep.start) + '일' : '';
+        var range = ep.start === ep.end
+          ? esc(fmtKeyShort(ep.start).replace(' · 오늘', ''))
+          : esc(fmtKeyShort(ep.start).replace(' · 오늘', '')) + ' ~ ' + esc(fmtKeyShort(ep.end).replace(' · 오늘', ''));
+        rows +=
+          '<div class="dose-row">' +
+            '<span class="d-name">' + range + '</span>' +
+            '<span class="d-time">' + len + '일' + (cycleTxt ? ' · ' + cycleTxt : '') + '</span>' +
+          '</div>';
+      }
+      html +=
+        '<h2 class="section-title">생리 기록</h2>' +
+        '<section class="card">' + rows + '</section>';
+    }
+
     html += bottomNavHtml('calendar');
     app.innerHTML = html;
 
@@ -670,8 +884,8 @@
 
   function dayPanelHtml(key, periodOn, periodSet) {
     var meds = getMeds();
-    var medById = {};
-    meds.forEach(function (mm) { medById[mm.id] = mm; });
+    var medMap = {};
+    meds.forEach(function (mm) { medMap[mm.id] = mm; });
 
     var doses = getDoses().filter(function (d) { return dateKey(d.ts) === key; })
       .sort(function (a, b) { return a.ts - b.ts; });
@@ -689,7 +903,7 @@
       html += '<p class="dp-empty">이날 복용 기록이 없어요.</p>';
     } else {
       doses.forEach(function (d) {
-        var med = medById[d.medId];
+        var med = medMap[d.medId];
         var editing = state.timeEdit && state.timeEdit.kind === 'dose' && state.timeEdit.id === d.id;
         if (editing) {
           html +=
@@ -785,11 +999,14 @@
         html += '<p class="settings-note">등록된 약이 없어요.</p>';
       }
       meds.forEach(function (med) {
+        var meta = med.type === 'check'
+          ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
+          : '간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
         html +=
           '<div class="med-row">' +
             '<div>' +
               '<div class="r-name">' + esc(med.name) + '</div>' +
-              '<div class="r-meta">간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit + '</div>' +
+              '<div class="r-meta">' + meta + '</div>' +
             '</div>' +
             '<div class="r-actions">' +
               '<button data-edit="' + esc(med.id) + '">수정</button>' +
@@ -821,16 +1038,16 @@
         renderSettings();
       });
       document.getElementById('add-med').addEventListener('click', function () {
-        go('medForm');
+        go('medForm', { editMedId: null, returnTo: 'settings' });
       });
       app.querySelectorAll('[data-edit]').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          go('medForm', { editMedId: btn.getAttribute('data-edit') });
+          go('medForm', { editMedId: btn.getAttribute('data-edit'), returnTo: 'settings' });
         });
       });
       app.querySelectorAll('[data-del]').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          var med = getMeds().find(function (mm) { return mm.id === btn.getAttribute('data-del'); });
+          var med = medById(btn.getAttribute('data-del'));
           if (med && window.confirm('"' + med.name + '"을(를) 삭제할까요?\n복용 이력은 남아있어요.')) {
             saveMeds(getMeds().filter(function (mm) { return mm.id !== med.id; }));
             renderSettings();
@@ -855,9 +1072,8 @@
   /* ===== 약 추가/수정 폼 ===== */
   function renderMedForm() {
     app.className = 'no-nav';
-    var editing = state.editMedId
-      ? getMeds().find(function (mm) { return mm.id === state.editMedId; })
-      : null;
+    var editing = state.editMedId ? medById(state.editMedId) : null;
+    var curType = editing ? (editing.type || 'interval') : 'interval';
 
     app.innerHTML =
       '<div class="back-head">' +
@@ -866,17 +1082,26 @@
       '</div>' +
       '<div class="card">' +
         '<div class="form-field">' +
+          '<label>기록 방식</label>' +
+          '<div class="type-select">' +
+            '<button type="button" data-type="interval" class="' + (curType === 'interval' ? 'active' : '') + '">' +
+              '<b>간격 트래커</b><span>다음 복용 가능 시각 계산</span></button>' +
+            '<button type="button" data-type="check" class="' + (curType === 'check' ? 'active' : '') + '">' +
+              '<b>복용 체크</b><span>먹었는지만 기록</span></button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-field">' +
           '<label for="f-name">약 이름</label>' +
           '<input id="f-name" type="text" placeholder="예: 타이레놀 500mg" value="' + (editing ? esc(editing.name) : '') + '">' +
         '</div>' +
         '<div class="form-row">' +
-          '<div class="form-field">' +
+          '<div class="form-field" id="field-interval">' +
             '<label for="f-interval">최소 간격 (시간)</label>' +
-            '<input id="f-interval" type="number" inputmode="decimal" min="0.5" step="0.5" placeholder="4" value="' + (editing ? editing.intervalHours : '') + '">' +
+            '<input id="f-interval" type="number" inputmode="decimal" min="0.5" step="0.5" placeholder="4" value="' + (editing && editing.intervalHours != null ? editing.intervalHours : '') + '">' +
           '</div>' +
           '<div class="form-field">' +
-            '<label for="f-max">1일 최대 (개수)</label>' +
-            '<input id="f-max" type="number" inputmode="numeric" min="1" step="1" placeholder="8" value="' + (editing ? editing.maxPerDay : '') + '">' +
+            '<label for="f-max" id="label-max">1일 최대 (개수)</label>' +
+            '<input id="f-max" type="number" inputmode="numeric" min="1" step="1" placeholder="8" value="' + (editing && editing.maxPerDay != null ? editing.maxPerDay : '') + '">' +
           '</div>' +
         '</div>' +
         '<div class="form-field">' +
@@ -889,34 +1114,57 @@
         '</div>' +
       '</div>';
 
+    var typeButtons = app.querySelectorAll('.type-select button');
+    function applyTypeUI() {
+      document.getElementById('field-interval').style.display = curType === 'interval' ? '' : 'none';
+      document.getElementById('label-max').textContent = curType === 'interval' ? '1일 최대 (개수)' : '1일 최대 (선택)';
+    }
+    typeButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        curType = btn.getAttribute('data-type');
+        typeButtons.forEach(function (b) { b.classList.toggle('active', b === btn); });
+        applyTypeUI();
+      });
+    });
+    applyTypeUI();
+
     document.getElementById('back').addEventListener('click', backFromForm);
     document.getElementById('cancel').addEventListener('click', backFromForm);
     document.getElementById('save').addEventListener('click', function () {
       var name = document.getElementById('f-name').value.trim();
       var interval = parseFloat(document.getElementById('f-interval').value);
-      var max = parseInt(document.getElementById('f-max').value, 10);
+      var maxRaw = document.getElementById('f-max').value;
+      var max = parseInt(maxRaw, 10);
       var unit = document.getElementById('f-unit').value.trim() || '정';
 
       if (!name) { window.alert('약 이름을 입력해 주세요.'); return; }
-      if (!(interval > 0)) { window.alert('최소 간격(시간)을 입력해 주세요.'); return; }
-      if (!(max > 0)) { window.alert('1일 최대 개수를 입력해 주세요.'); return; }
+      if (curType === 'interval') {
+        if (!(interval > 0)) { window.alert('최소 간격(시간)을 입력해 주세요.'); return; }
+        if (!(max > 0)) { window.alert('1일 최대 개수를 입력해 주세요.'); return; }
+      } else {
+        interval = null;
+        max = maxRaw && max > 0 ? max : null;
+      }
 
+      var newMed = {
+        id: editing ? editing.id : uid(),
+        name: name, unit: unit, type: curType,
+        intervalHours: interval, maxPerDay: max
+      };
       var meds = getMeds();
       if (editing) {
-        meds = meds.map(function (mm) {
-          return mm.id === editing.id
-            ? { id: mm.id, name: name, unit: unit, intervalHours: interval, maxPerDay: max }
-            : mm;
-        });
+        meds = meds.map(function (mm) { return mm.id === editing.id ? newMed : mm; });
       } else {
-        meds.push({ id: uid(), name: name, unit: unit, intervalHours: interval, maxPerDay: max });
+        meds.push(newMed);
       }
       saveMeds(meds);
       backFromForm();
     });
 
     function backFromForm() {
-      go(state.editMedId ? 'settings' : 'home');
+      if (state.returnTo === 'medDetail' && state.detailMedId) go('medDetail', {});
+      else if (state.returnTo === 'settings') go('settings');
+      else go('home');
     }
   }
 
@@ -947,6 +1195,7 @@
   }
 
   /* ===== 시작 ===== */
+  migrate();
   render();
 
   // 탭 복귀 시 화면 갱신 (자정 넘김·백그라운드 경과 반영)

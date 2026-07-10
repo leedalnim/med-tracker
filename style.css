@@ -238,14 +238,62 @@ input, select {
   padding: 11px 16px;
   font-size: 13px;
   font-weight: 700;
-  margin-top: 14px;
+  margin: 4px 0 12px;
 }
 
-.card-foot {
+/* 카드 하단 행: 왼쪽 시간 정보 · 오른쪽 작은 버튼 */
+.med-card { cursor: pointer; }
+.card-row {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
   margin-top: 6px;
+}
+.cr-left { min-width: 0; }
+.cr-left .cr-time { font-size: 14px; font-weight: 700; }
+.cr-left .cr-links { display: flex; gap: 2px; margin-left: -6px; }
+.pill-btn.compact {
+  width: auto;
+  padding: 11px 22px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* 복용 체크형 카드 상태 줄 */
+.check-line {
+  font-size: 17px;
+  font-weight: 800;
+  margin: 16px 0 12px;
+}
+.check-line .ok { color: var(--accent); }
+.check-line.none { color: var(--text-dim); font-weight: 700; }
+
+/* 약 상세 */
+.back-head .bh-sub { font-size: 12px; color: var(--text-dim); font-weight: 700; margin-top: 1px; }
+.detail-stats {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ds-item {
+  flex: 1;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  padding: 14px 8px;
+}
+.ds-item .ds-num { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+.ds-item .ds-label { font-size: 11px; color: var(--text-dim); font-weight: 700; margin-top: 2px; }
+.detail-status { font-size: 14px; font-weight: 600; color: var(--text-dim); margin-bottom: 12px; }
+.detail-status b { color: var(--text); }
+.detail-status .hl { color: var(--accent); }
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin: 20px 4px 10px;
 }
 
 /* 시간 수정 인라인 */
@@ -480,6 +528,26 @@ input, select {
 .form-row { display: flex; gap: 12px; }
 .form-row .form-field { flex: 1; }
 .form-actions { display: flex; gap: 12px; margin-top: 8px; }
+
+/* 기록 방식 선택 */
+.type-select { display: flex; gap: 10px; }
+.type-select button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 13px 14px;
+  color: var(--text-dim);
+}
+.type-select button b { font-size: 14px; font-weight: 800; }
+.type-select button span { font-size: 11px; font-weight: 600; }
+.type-select button.active {
+  border-color: var(--text);
+  color: var(--text);
+}
 
 /* ===== 설정 ===== */
 .settings-group { margin-bottom: 24px; }
