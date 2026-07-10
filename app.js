@@ -375,7 +375,7 @@
 
     var meta = isCheck
       ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
-      : '간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
+      : '최소 간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
 
     var reached = med.maxPerDay ? todays.length >= med.maxPerDay : false;
     var exceeded = med.maxPerDay ? todays.length > med.maxPerDay : false;
@@ -383,18 +383,10 @@
       ? '오늘 ' + todays.length + '/' + med.maxPerDay
       : '오늘 ' + todays.length + '회';
 
-    // 액션(기록 버튼 + 수정/취소)은 링 오른쪽 열에 한 줄로
-    var links = [];
-    if (last) {
-      links.push('<button class="text-btn" data-edit-time="' + esc(last.id) + '">수정</button>');
-      if (now - last.ts < UNDO_WINDOW_MS) {
-        links.push('<button class="text-btn" data-undo="' + esc(last.id) + '">취소</button>');
-      }
-    }
+    // 기록 버튼은 가장 오른쪽에. 기록 수정·삭제는 카드 탭 → 상세의 복용 내역에서
     var actions =
       '<div class="status-actions">' +
-        '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + (isCheck ? '복용 체크' : '복용 기록') + '</button>' +
-        links.join('') +
+        '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>' +
       '</div>';
 
     var body = '';
@@ -475,17 +467,7 @@
       warn = '<div class="warn-banner">오늘 최대치 ' + med.maxPerDay + med.unit + ' 초과 — 현재 ' + todays.length + med.unit + '</div>';
     }
 
-    // 시각 수정 중일 때만 카드 아래에 입력 행 표시
     var foot = '';
-    var editing = last && state.timeEdit && state.timeEdit.kind === 'dose' && state.timeEdit.id === last.id;
-    if (editing) {
-      foot =
-        '<div class="time-edit">' +
-          '<input type="time" id="te-input" value="' + timeInputValue(last.ts) + '">' +
-          '<button class="pill-btn" data-te-save="' + esc(last.id) + '">저장</button>' +
-          '<button class="text-btn" data-te-cancel>닫기</button>' +
-        '</div>';
-    }
 
     return (
       '<section class="card med-card" data-med="' + esc(med.id) + '" role="button" tabindex="0">' +
@@ -513,35 +495,6 @@
     app.querySelectorAll('[data-log]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         logDose(btn.getAttribute('data-log'));
-        state.timeEdit = null;
-        renderTrackerHome();
-      });
-    });
-    app.querySelectorAll('[data-undo]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        removeDose(btn.getAttribute('data-undo'));
-        renderTrackerHome();
-      });
-    });
-    app.querySelectorAll('[data-edit-time]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        state.timeEdit = { kind: 'dose', id: btn.getAttribute('data-edit-time') };
-        renderTrackerHome();
-      });
-    });
-    app.querySelectorAll('[data-te-save]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var val = document.getElementById('te-input').value;
-        if (val && !setDoseTime(btn.getAttribute('data-te-save'), val)) {
-          window.alert('지금보다 미래 시각으로는 저장할 수 없어요.');
-          return;
-        }
-        state.timeEdit = null;
-        renderTrackerHome();
-      });
-    });
-    app.querySelectorAll('[data-te-cancel]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
         state.timeEdit = null;
         renderTrackerHome();
       });
@@ -610,8 +563,8 @@
             '<div class="dose-row">' +
               '<span class="d-time">' + esc(fmtTime(d.ts)) + '</span>' +
               '<span class="d-actions">' +
-                '<button class="text-btn" data-md-edit="' + esc(d.id) + '">수정</button>' +
-                '<button class="text-btn danger" data-md-del="' + esc(d.id) + '">삭제</button>' +
+                '<button class="ico-btn" data-md-edit="' + esc(d.id) + '" aria-label="시간 수정">' + ICON.edit + '</button>' +
+                '<button class="ico-btn danger" data-md-del="' + esc(d.id) + '" aria-label="삭제">' + ICON.trash + '</button>' +
               '</span>' +
             '</div>';
         }
@@ -621,17 +574,16 @@
     app.innerHTML =
       '<div class="back-head">' +
         '<button id="back" aria-label="뒤로">←</button>' +
-        '<div>' +
+        '<div class="bh-titlerow">' +
           '<h1>' + esc(med.name) + '</h1>' +
-          '<p class="bh-sub">' + (isCheck ? '복용 체크' : '간격 트래커') + '</p>' +
+          '<button class="ico-btn" id="edit-med-info" aria-label="약 정보 수정">' + ICON.edit + '</button>' +
         '</div>' +
       '</div>' +
       '<div class="card">' +
         summary +
         statusLine +
-        '<div class="card-row">' +
-          '<button class="text-btn" id="edit-med-info">약 정보 수정</button>' +
-          '<button class="pill-btn compact" id="detail-log">' + (isCheck ? '복용 체크' : '복용 기록') + '</button>' +
+        '<div class="status-actions">' +
+          '<button class="pill-btn compact" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
         '</div>' +
       '</div>' +
       '<h2 class="section-title">복용 내역 (최근 30일)</h2>' +
@@ -925,8 +877,8 @@
               '<span class="d-name">' + esc(med ? med.name : '삭제된 약') + '</span>' +
               '<span class="d-time">' + esc(fmtTime(d.ts)) + '</span>' +
               '<span class="d-actions">' +
-                '<button class="text-btn" data-dp-edit="' + esc(d.id) + '">수정</button>' +
-                '<button class="text-btn danger" data-dp-del="' + esc(d.id) + '">삭제</button>' +
+                '<button class="ico-btn" data-dp-edit="' + esc(d.id) + '" aria-label="시간 수정">' + ICON.edit + '</button>' +
+                '<button class="ico-btn danger" data-dp-del="' + esc(d.id) + '" aria-label="삭제">' + ICON.trash + '</button>' +
               '</span>' +
             '</div>';
         }
@@ -1008,7 +960,7 @@
       meds.forEach(function (med) {
         var meta = med.type === 'check'
           ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
-          : '간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
+          : '최소 간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
         html +=
           '<div class="med-row">' +
             '<div>' +
@@ -1115,9 +1067,10 @@
           '<label for="f-unit">단위</label>' +
           '<input id="f-unit" type="text" placeholder="정 / 캡슐 / 포" value="' + (editing ? esc(editing.unit) : '정') + '">' +
         '</div>' +
+        '<p class="form-error" id="form-error"></p>' +
         '<div class="form-actions">' +
-          '<button class="pill-btn secondary" id="cancel">취소</button>' +
-          '<button class="pill-btn" id="save">저장</button>' +
+          '<button type="button" class="pill-btn secondary" id="cancel">취소</button>' +
+          '<button type="button" class="pill-btn" id="save">저장</button>' +
         '</div>' +
       '</div>';
 
@@ -1144,10 +1097,20 @@
       var max = parseInt(maxRaw, 10);
       var unit = document.getElementById('f-unit').value.trim() || '정';
 
-      if (!name) { window.alert('약 이름을 입력해 주세요.'); return; }
+      // 인라인 오류 표시 (alert가 막히는 환경에서도 반응이 보이도록)
+      var errEl = document.getElementById('form-error');
+      function fail(msg, fieldId) {
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+        var f = document.getElementById(fieldId);
+        if (f) f.focus();
+      }
+      errEl.style.display = 'none';
+
+      if (!name) { fail('약 이름을 입력해 주세요.', 'f-name'); return; }
       if (curType === 'interval') {
-        if (!(interval > 0)) { window.alert('최소 간격(시간)을 입력해 주세요.'); return; }
-        if (!(max > 0)) { window.alert('1일 최대 개수를 입력해 주세요.'); return; }
+        if (!(interval > 0)) { fail('최소 간격(시간)을 입력해 주세요.', 'f-interval'); return; }
+        if (!(max > 0)) { fail('1일 최대 개수를 입력해 주세요.', 'f-max'); return; }
       } else {
         interval = null;
         max = maxRaw && max > 0 ? max : null;
@@ -1177,6 +1140,9 @@
 
   /* ===== 하단 내비 ===== */
   var ICON = {
+    pillPlus: '<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.2" y="10.6" width="12.6" height="6.6" rx="3.3" transform="rotate(-45 9.5 13.9)"/><path d="M7.2 11.6l4.6 4.6"/><path d="M18.5 3.5v6M15.5 6.5h6"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4.5-1L20 7.5a2.1 2.1 0 0 0-3-3L5.5 16 4 20z"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/><path d="M10 11v6M14 11v6"/></svg>',
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.2 12 4l9 7.2"/><path d="M5.5 10v10h13V10"/></svg>',
     cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"/></svg>',
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/></svg>'
@@ -1213,7 +1179,9 @@
   // 서비스워커 등록 (미리보기 등 지원 안 되는 환경은 조용히 통과)
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('./sw.js').catch(function () { /* noop */ });
+      navigator.serviceWorker.register('./sw.js').then(function (reg) {
+        if (reg && reg.update) reg.update(); // 새 배포를 최대한 빨리 반영
+      }).catch(function () { /* noop */ });
     });
   }
 })();
