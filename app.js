@@ -441,19 +441,20 @@
         return m + '분';
       })();
 
+      // 남은 시간·상태는 링이 전담, 오른쪽 텍스트는 링에 없는 정보만
       // 보수적 표시: 오늘 최대치에 도달하면 간격과 무관하게 '오늘 최대' 상태로 고정
       var ringCenter, ringCls, statusMain, statusSub;
       if (reached) {
         dashoffset = 0;
         ringCls = ' ready';
         ringCenter = '<div class="ring-center max"><div class="big">오늘<br>최대</div></div>';
-        statusMain = '오늘 최대치 ' + med.maxPerDay + med.unit + '에 도달했어요';
-        statusSub = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '';
+        statusMain = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '';
+        statusSub = '';
       } else if (ready) {
         ringCls = ' ready';
         ringCenter = '<div class="ring-center ready"><div class="big">지금 복용<br>가능</div></div>';
-        statusMain = '<span class="hl">지금 복용 가능</span>해요';
-        statusSub = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '아직 복용 기록이 없어요';
+        statusMain = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '아직 복용 기록이 없어요';
+        statusSub = '';
       } else {
         ringCls = '';
         ringCenter =
@@ -461,8 +462,8 @@
             '<div class="big">' + remainRing + '</div>' +
             '<div class="small">남음</div>' +
           '</div>';
-        statusMain = '다음 복용 가능까지<br><span class="hl">' + esc(fmtRemain(remainMs)) + ' 남음</span>';
-        statusSub = esc(fmtTime(last.ts + intervalMs)) + ' 이후 · 마지막 ' + esc(fmtTime(last.ts));
+        statusMain = '<span class="hl">' + esc(fmtTime(last.ts + intervalMs)) + '</span> 이후 복용 가능';
+        statusSub = '마지막 ' + esc(fmtTime(last.ts));
       }
 
       // 왼쪽: 링 + 그 아래 먹었어요 버튼 / 오른쪽: 상태 정보 + 정보 수정
@@ -481,7 +482,7 @@
             logBtn +
           '</div>' +
           '<div class="med-status">' +
-            '<p class="status-main">' + statusMain + '</p>' +
+            (statusMain ? '<p class="status-main">' + statusMain + '</p>' : '') +
             (statusSub ? '<p class="status-sub">' + statusSub + '</p>' : '') +
             editLink +
           '</div>' +
