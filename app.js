@@ -394,10 +394,6 @@
     var last = lastDoseForMed(med.id);
     var todays = todayDosesForMed(med.id);
 
-    var meta = isCheck
-      ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
-      : '최소 간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
-
     var reached = med.maxPerDay ? todays.length >= med.maxPerDay : false;
     var exceeded = med.maxPerDay ? todays.length > med.maxPerDay : false;
     var badge = med.maxPerDay
@@ -406,20 +402,22 @@
 
     var logBtn = '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>';
     var editLink = '<button class="med-edit-link" data-editinfo="' + esc(med.id) + '">' + ICON.edit + '정보 수정</button>';
+    var titleRow =
+      '<div class="mc-title">' +
+        '<span class="med-name">' + esc(med.name) + '</span>' +
+        '<span class="badge' + (reached ? ' filled' : '') + '">' + badge + '</span>' +
+      '</div>';
+    var actionsRow = '<div class="mc-actions">' + logBtn + editLink + '</div>';
 
-    var body = '';
+    var statusLine = '';
+    var ringHtml = '';
     if (isCheck) {
       var todayLast = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
-      var checkLine = todayLast
-        ? '<p class="check-line"><span class="ok">✓</span> 오늘 드셨어요 · ' + esc(fmtTime(todayLast.ts)) + '</p>'
-        : '<p class="check-line none">오늘 아직 기록이 없어요</p>';
-      body =
-        '<div class="check-row">' +
-          '<div>' + checkLine + editLink + '</div>' +
-          logBtn +
-        '</div>';
+      statusLine = todayLast
+        ? '<span class="ok">✓</span> 오늘 드셨어요 · ' + esc(fmtTime(todayLast.ts))
+        : '오늘 아직 기록이 없어요';
     } else {
       var intervalMs = med.intervalHours * 3600 * 1000;
       var ready = true;
@@ -441,20 +439,18 @@
         return m + '분';
       })();
 
-      // 남은 시간·상태는 링이 전담, 오른쪽 텍스트는 링에 없는 정보만
+      // 남은 시간·상태는 링이 전담, 오른쪽 한 줄은 링에 없는 정보만
       // 보수적 표시: 오늘 최대치에 도달하면 간격과 무관하게 '오늘 최대' 상태로 고정
-      var ringCenter, ringCls, statusMain, statusSub;
+      var ringCenter, ringCls;
       if (reached) {
         dashoffset = 0;
         ringCls = ' ready';
         ringCenter = '<div class="ring-center max"><div class="big">오늘<br>최대</div></div>';
-        statusMain = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '';
-        statusSub = '';
+        statusLine = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '';
       } else if (ready) {
         ringCls = ' ready';
         ringCenter = '<div class="ring-center ready"><div class="big">지금 복용<br>가능</div></div>';
-        statusMain = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '아직 복용 기록이 없어요';
-        statusSub = '';
+        statusLine = last ? '마지막 복용 ' + esc(fmtTime(last.ts)) : '아직 복용 기록이 없어요';
       } else {
         ringCls = '';
         ringCenter =
@@ -462,30 +458,18 @@
             '<div class="big">' + remainRing + '</div>' +
             '<div class="small">남음</div>' +
           '</div>';
-        statusMain = '<span class="hl">' + esc(fmtTime(last.ts + intervalMs)) + '</span> 이후 복용 가능';
-        statusSub = '마지막 ' + esc(fmtTime(last.ts));
+        statusLine = '<span class="hl">' + esc(fmtTime(last.ts + intervalMs)) + '</span> 이후 가능 · 마지막 ' + esc(fmtTime(last.ts));
       }
 
-      // 왼쪽: 링 + 그 아래 먹었어요 버튼 / 오른쪽: 상태 정보 + 정보 수정
-      body =
-        '<div class="med-body">' +
-          '<div class="med-left">' +
-            '<div class="ring-wrap">' +
-              '<svg viewBox="0 0 120 120" aria-hidden="true">' +
-                '<circle class="ring-bg" cx="60" cy="60" r="54"></circle>' +
-                '<circle class="ring-fg' + ringCls + '" cx="60" cy="60" r="54" ' +
-                  'stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + dashoffset.toFixed(2) + '" ' +
-                  'transform="rotate(-90 60 60)"></circle>' +
-              '</svg>' +
-              ringCenter +
-            '</div>' +
-            logBtn +
-          '</div>' +
-          '<div class="med-status">' +
-            (statusMain ? '<p class="status-main">' + statusMain + '</p>' : '') +
-            (statusSub ? '<p class="status-sub">' + statusSub + '</p>' : '') +
-            editLink +
-          '</div>' +
+      ringHtml =
+        '<div class="ring-wrap sm">' +
+          '<svg viewBox="0 0 120 120" aria-hidden="true">' +
+            '<circle class="ring-bg" cx="60" cy="60" r="54"></circle>' +
+            '<circle class="ring-fg' + ringCls + '" cx="60" cy="60" r="54" ' +
+              'stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + dashoffset.toFixed(2) + '" ' +
+              'transform="rotate(-90 60 60)"></circle>' +
+          '</svg>' +
+          ringCenter +
         '</div>';
     }
 
@@ -498,14 +482,14 @@
 
     return (
       '<section class="card med-card" data-med="' + esc(med.id) + '" role="button" tabindex="0">' +
-        '<div class="med-head">' +
-          '<div>' +
-            '<div class="med-name">' + esc(med.name) + '</div>' +
-            '<div class="med-meta">' + meta + '</div>' +
+        '<div class="mc-row">' +
+          ringHtml +
+          '<div class="mc-main">' +
+            titleRow +
+            (statusLine ? '<p class="status-line">' + statusLine + '</p>' : '') +
+            actionsRow +
           '</div>' +
-          '<span class="badge' + (reached ? ' filled' : '') + '">' + badge + '</span>' +
         '</div>' +
-        body +
         warn +
         foot +
       '</section>'
