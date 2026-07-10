@@ -100,13 +100,19 @@
   }
   function timeInputValue(ts) {
     var d = new Date(ts);
-    return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
   }
-  function applyTimeToTs(ts, hhmm) { // 같은 날짜에 시:분만 교체
-    var p = hhmm.split(':');
+  function applyTimeToTs(ts, hms) { // 같은 날짜에 시:분:초 교체
+    var p = hms.split(':');
     var d = new Date(ts);
-    d.setHours(Number(p[0]), Number(p[1]), 0, 0);
+    d.setHours(Number(p[0]), Number(p[1]), p[2] ? Number(p[2]) : 0, 0);
     return d.getTime();
+  }
+  function combineDateTime(dateStr, hms) { // 'YYYY-MM-DD' + 'HH:MM[:SS]' → ts
+    var dp = dateStr.split('-');
+    var tp = hms.split(':');
+    return new Date(Number(dp[0]), Number(dp[1]) - 1, Number(dp[2]),
+      Number(tp[0]), Number(tp[1]), tp[2] ? Number(tp[2]) : 0, 0).getTime();
   }
 
   /* ===== 데이터 ===== */
@@ -168,6 +174,11 @@
   function logDose(medId) {
     var doses = getDoses();
     doses.push({ id: uid(), medId: medId, ts: Date.now() });
+    saveDoses(doses);
+  }
+  function addDoseAt(medId, ts) {
+    var doses = getDoses();
+    doses.push({ id: uid(), medId: medId, ts: ts });
     saveDoses(doses);
   }
   function removeDose(doseId) {
@@ -309,6 +320,7 @@
     if ('returnTo' in opts) state.returnTo = opts.returnTo;
     state.timeEdit = null;
     state.periodAdd = false;
+    state.doseAdd = false;
     render();
   }
 
@@ -636,7 +648,7 @@
         if (editing) {
           listHtml +=
             '<div class="time-edit">' +
-              '<input type="time" id="te-input" value="' + timeInputValue(d.ts) + '">' +
+              '<input type="time" step="1" id="te-input" value="' + timeInputValue(d.ts) + '">' +
               '<button class="pill-btn" data-md-save="' + esc(d.id) + '">저장</button>' +
               '<button class="text-btn" data-md-cancel>닫기</button>' +
             '</div>';
@@ -653,6 +665,24 @@
       });
     }
 
+    // 지난 복용 기록을 날짜·시각 지정해 직접 추가하는 폼
+    var nowD = new Date();
+    var addForm = state.doseAdd
+      ? '<div class="card">' +
+          '<div class="form-row">' +
+            '<div class="form-field"><label for="da-date">날짜</label>' +
+              '<input id="da-date" type="date" max="' + todayKey() + '" value="' + todayKey() + '"></div>' +
+            '<div class="form-field"><label for="da-time">시각</label>' +
+              '<input id="da-time" type="time" step="1" value="' + timeInputValue(nowD.getTime()) + '"></div>' +
+          '</div>' +
+          '<p class="form-error" id="da-error"></p>' +
+          '<div class="form-actions">' +
+            '<button class="pill-btn secondary" id="da-cancel">취소</button>' +
+            '<button class="pill-btn" id="da-save">기록 추가</button>' +
+          '</div>' +
+        '</div>'
+      : '';
+
     app.innerHTML =
       '<div class="back-head">' +
         '<button id="back" aria-label="뒤로">←</button>' +
@@ -662,7 +692,11 @@
         '</div>' +
       '</div>' +
       topCard +
-      '<h2 class="section-title">복용 내역 (최근 30일)</h2>' +
+      '<div class="section-head">' +
+        '<h2 class="section-title">복용 내역 (최근 30일)</h2>' +
+        (state.doseAdd ? '' : '<button class="text-btn" id="dose-add-btn">+ 기록 추가</button>') +
+      '</div>' +
+      addForm +
       '<div class="card">' + listHtml + '</div>';
 
     document.getElementById('back').addEventListener('click', function () { go('home'); });
@@ -702,6 +736,34 @@
         renderMedDetail();
       });
     });
+
+    var addBtn = document.getElementById('dose-add-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        state.doseAdd = true;
+        state.timeEdit = null;
+        renderMedDetail();
+      });
+    }
+    if (state.doseAdd) {
+      document.getElementById('da-cancel').addEventListener('click', function () {
+        state.doseAdd = false;
+        renderMedDetail();
+      });
+      document.getElementById('da-save').addEventListener('click', function () {
+        var dateVal = document.getElementById('da-date').value;
+        var timeVal = document.getElementById('da-time').value;
+        var errEl = document.getElementById('da-error');
+        function fail(msg) { errEl.textContent = msg; errEl.style.display = 'block'; }
+        if (!dateVal) { fail('날짜를 선택해 주세요.'); return; }
+        if (!timeVal) { fail('시각을 입력해 주세요.'); return; }
+        var ts = combineDateTime(dateVal, timeVal);
+        if (ts > Date.now()) { fail('미래 시각으로는 기록할 수 없어요.'); return; }
+        addDoseAt(med.id, ts);
+        state.doseAdd = false;
+        renderMedDetail();
+      });
+    }
   }
 
   /* ===== 심플 체크 홈 ===== */
@@ -740,7 +802,7 @@
           slotsHtml +=
             '<div class="slot-fix">' +
               '<div class="time-edit">' +
-                '<input type="time" id="te-input" value="' + timeInputValue(check.ts) + '">' +
+                '<input type="time" step="1" id="te-input" value="' + timeInputValue(check.ts) + '">' +
                 '<button class="pill-btn" data-fix-save="' + s.key + '">저장</button>' +
               '</div>' +
             '</div>';
@@ -926,7 +988,7 @@
         if (editing) {
           html +=
             '<div class="time-edit">' +
-              '<input type="time" id="te-input" value="' + timeInputValue(d.ts) + '">' +
+              '<input type="time" step="1" id="te-input" value="' + timeInputValue(d.ts) + '">' +
               '<button class="pill-btn" data-dp-save="' + esc(d.id) + '">저장</button>' +
               '<button class="text-btn" data-dp-cancel>닫기</button>' +
             '</div>';

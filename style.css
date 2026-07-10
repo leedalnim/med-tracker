@@ -381,6 +381,13 @@ input, select {
   color: var(--text-dim);
   margin: 20px 4px 10px;
 }
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-head .section-title { margin-right: 0; }
+.section-head .text-btn { color: var(--accent); }
 
 /* 시간 수정 인라인 */
 .time-edit {
