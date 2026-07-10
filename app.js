@@ -74,7 +74,9 @@
     return Math.round((keyToDate(b) - keyToDate(a)) / 86400000);
   }
   function fmtTime(ts) {
-    return new Date(ts).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
+    // 24시간제 H:MM:SS (한글 오전/오후 없이 글자 폭 축소)
+    var d = new Date(ts);
+    return d.getHours() + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
   }
   function fmtDateLong(ts) {
     return new Date(ts).toLocaleDateString('ko-KR', {
