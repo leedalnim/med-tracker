@@ -1,9 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="112" fill="#B4524B"/>
+  <!-- 시계 느낌: 흐린 트랙 + 270° 진행 호 (12시에서 시계방향, 9시까지) -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="26"/>
+  <path d="M 256 66 A 190 190 0 1 1 66 256" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round"/>
+  <!-- 알약 (대각선) -->
   <g transform="rotate(-45 256 256)">
-    <rect x="146" y="196" width="220" height="120" rx="60" fill="#FFFFFF"/>
-    <path d="M206 196 H256 V316 H206 A60 60 0 0 1 146 256 A60 60 0 0 1 206 196 Z" fill="#F0DAD8"/>
-    <line x1="256" y1="196" x2="256" y2="316" stroke="#B4524B" stroke-opacity="0.25" stroke-width="4"/>
+    <rect x="140" y="198" width="232" height="116" rx="58" fill="#FFFFFF"/>
+    <path d="M198 198 H256 V314 H198 A58 58 0 0 1 140 256 A58 58 0 0 1 198 198 Z" fill="#F0DAD8"/>
+    <line x1="256" y1="198" x2="256" y2="314" stroke="#B4524B" stroke-opacity="0.25" stroke-width="4"/>
   </g>
-  <circle cx="392" cy="120" r="28" fill="#FFFFFF"/>
 </svg>
