@@ -41,8 +41,8 @@
     { name: '탁센 (나프록센 250mg)', unit: '캡슐', type: 'interval', intervalHours: 6, maxPerDay: 5 },
     { name: '로수바이브정', unit: '정', type: 'check', intervalHours: null, maxPerDay: 1 },
     { name: '본비바정 150mg (월 1회)', unit: '정', type: 'check', intervalHours: null, maxPerDay: 1 },
-    { name: '라바로브정', unit: '정', type: 'check', intervalHours: null, maxPerDay: null },
-    { name: '라바로하이정', unit: '정', type: 'check', intervalHours: null, maxPerDay: null }
+    { name: '라바로브정', unit: '정', type: 'check', intervalHours: null, maxPerDay: 1 },
+    { name: '라바로하이정', unit: '정', type: 'check', intervalHours: null, maxPerDay: 1 }
   ];
 
   /* ===== 유틸 ===== */
@@ -147,7 +147,7 @@
   // 기존 저장 데이터 보정
   function migrate() {
     var ver = storage.get(KEY.migr, 0);
-    if (ver >= 3) return;
+    if (ver >= 4) return;
     // v1~2: type 기본값, 이지엔6프로 최대치(허가 용량 1일 4캡슐) 수정
     if (ver < 2 && storage.has(KEY.meds)) {
       var meds = storage.get(KEY.meds, []).map(function (m) {
@@ -166,7 +166,16 @@
     if (!storage.has(KEY.periodOn) && storage.get(KEY.period, []).length) {
       storage.set(KEY.periodOn, true);
     }
-    storage.set(KEY.migr, 3);
+    // v4: 라바로브정·라바로하이정 1일 1회 확정 — 비어 있던 최대치 채움
+    if (ver < 4 && storage.has(KEY.meds)) {
+      storage.set(KEY.meds, storage.get(KEY.meds, []).map(function (m) {
+        if ((m.name === '라바로브정' || m.name === '라바로하이정') && m.maxPerDay == null) {
+          m.maxPerDay = 1;
+        }
+        return m;
+      }));
+    }
+    storage.set(KEY.migr, 4);
   }
 
   function getDoses() { return storage.get(KEY.doses, []); }
