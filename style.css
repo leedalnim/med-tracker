@@ -12,6 +12,8 @@
   --btn-text: #FFFFFF;
   --shadow: 0 2px 10px rgba(17, 17, 20, 0.05);
   --nav-bg: rgba(255, 255, 255, 0.72);
+  --ovul: #6D6AA6;
+  --ovul-soft: rgba(109, 106, 166, 0.14);
   --radius: 22px;
   --radius-sm: 14px;
 }
@@ -29,6 +31,8 @@
     --btn-text: #111114;
     --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     --nav-bg: rgba(35, 35, 40, 0.58);
+    --ovul: #A6A2E0;
+    --ovul-soft: rgba(166, 162, 224, 0.18);
   }
 }
 
@@ -477,8 +481,48 @@ input, select {
 .cal-day.today { border-color: var(--text); }
 .cal-day.period { background: var(--accent-soft); color: var(--accent); font-weight: 800; }
 .cal-day.pred { border: 1.5px dashed var(--accent); color: var(--accent); }
+.cal-day.fertile { background: var(--ovul-soft); color: var(--ovul); font-weight: 700; }
+.cal-day.ovul { background: var(--ovul); color: #fff; font-weight: 800; }
 .cal-day.sel { background: var(--btn); color: var(--btn-text); }
 .cal-day.sel.period { background: var(--accent); color: var(--accent-text); }
+.cal-day.sel.ovul { background: var(--ovul); color: #fff; }
+
+/* 달력 범례 */
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.cal-legend .lg { width: 11px; height: 11px; border-radius: 50%; }
+.cal-legend .lg.period { background: var(--accent-soft); border: 1px solid var(--accent); }
+.cal-legend .lg.pred { border: 1.5px dashed var(--accent); }
+.cal-legend .lg.fertile { background: var(--ovul-soft); border: 1px solid var(--ovul); }
+.cal-legend .lg.ovul { background: var(--ovul); }
+
+/* 배란·가임기 요약 */
+.ovul-box {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ovul-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.ovul-row .ovul-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.ovul-row .ovul-dot.ov { background: var(--ovul); }
+.ovul-row .ovul-dot.fe { background: var(--ovul-soft); border: 1px solid var(--ovul); }
+.ovul-row .ovul-label { color: var(--text-dim); font-weight: 700; }
+.ovul-row b { color: var(--text); font-weight: 800; }
+.ovul-row .ovul-dd { color: var(--ovul); font-weight: 800; margin-left: auto; }
+.ovul-note { font-size: 11px; color: var(--text-dim); margin-top: 10px; line-height: 1.5; }
 .cal-day .dd {
   position: absolute;
   bottom: 15%;

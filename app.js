@@ -276,8 +276,16 @@
       var avgLen = Math.max(1, Math.round(lenSum / eps.length));
       var nextStart = addDays(eps[eps.length - 1].start, avg);
       stats.avgCycle = avg;
+      stats.avgLen = avgLen;
       stats.nextStart = nextStart;
       for (var d = 0; d < avgLen; d++) stats.predDays.push(addDays(nextStart, d));
+      // 배란 예정일 = 다음 생리 시작 14일 전(황체기 평균), 가임기 = 배란 -5 ~ +1일
+      stats.ovulation = addDays(nextStart, -14);
+      stats.fertileStart = addDays(stats.ovulation, -5);
+      stats.fertileEnd = addDays(stats.ovulation, 1);
+      stats.fertileDays = [];
+      var fk = stats.fertileStart;
+      while (fk <= stats.fertileEnd) { stats.fertileDays.push(fk); fk = addDays(fk, 1); }
     }
     return stats;
   }
@@ -824,6 +832,11 @@
     if (stats && stats.predDays) {
       stats.predDays.forEach(function (k) { predSet[k] = true; });
     }
+    var fertileSet = {}, ovulKey = null;
+    if (stats && stats.avgCycle) {
+      stats.fertileDays.forEach(function (k) { fertileSet[k] = true; });
+      ovulKey = stats.ovulation;
+    }
 
     // 이 달의 복용 기록 수
     var doseCount = {};
@@ -876,11 +889,22 @@
       if (k === tk) cls += ' today';
       if (periodSet[k]) cls += ' period';
       else if (predSet[k]) cls += ' pred';
+      else if (k === ovulKey) cls += ' ovul';
+      else if (fertileSet[k]) cls += ' fertile';
       if (k === state.selKey) cls += ' sel';
       html += '<button class="' + cls + '" data-day="' + k + '">' + day +
         (doseCount[k] ? '<span class="dd"></span>' : '') + '</button>';
     }
-    html += '</div></div>';
+    html += '</div>';
+    if (periodOn && stats && stats.avgCycle) {
+      html += '<div class="cal-legend">' +
+        '<span><i class="lg period"></i>생리</span>' +
+        '<span><i class="lg pred"></i>예정</span>' +
+        '<span><i class="lg fertile"></i>가임기</span>' +
+        '<span><i class="lg ovul"></i>배란</span>' +
+      '</div>';
+    }
+    html += '</div>';
 
     html += dayPanelHtml(state.selKey, periodOn, periodSet);
     html += bottomNavHtml('calendar');
@@ -1017,6 +1041,11 @@
       var lenSum = 0;
       eps.forEach(function (e) { lenSum += diffDays(e.start, e.end) + 1; });
       var avgLen = Math.max(1, Math.round(lenSum / eps.length));
+      var ovDd = diffDays(tk, stats.ovulation);
+      var ovLabel = ovDd > 0 ? 'D-' + ovDd : (ovDd === 0 ? '오늘' : ovDd * -1 + '일 지남');
+      var stripPrefix = function (key) {
+        return esc(fmtKeyShort(key).replace(' · 오늘', '').replace(/^\d+월 /, function (m) { return m; }));
+      };
       html +=
         '<div class="card">' +
           '<div class="detail-stats">' +
@@ -1024,7 +1053,14 @@
             '<div class="ds-item"><div class="ds-num">' + stats.avgCycle + '일</div><div class="ds-label">평균 주기</div></div>' +
             '<div class="ds-item"><div class="ds-num">' + avgLen + '일</div><div class="ds-label">평균 기간</div></div>' +
           '</div>' +
-          '<p class="detail-status">다음 예정일 <b>' + esc(fmtKeyShort(stats.nextStart).replace(' · 오늘', '')) + '</b> · 최근 기록 평균 기준</p>' +
+          '<p class="detail-status">다음 예정일 <b>' + stripPrefix(stats.nextStart) + '</b> · 최근 기록 평균 기준</p>' +
+          '<div class="ovul-box">' +
+            '<div class="ovul-row"><span class="ovul-dot ov"></span><span class="ovul-label">배란 예정일</span>' +
+              '<b>' + stripPrefix(stats.ovulation) + '</b><span class="ovul-dd">' + ovLabel + '</span></div>' +
+            '<div class="ovul-row"><span class="ovul-dot fe"></span><span class="ovul-label">가임기</span>' +
+              '<b>' + stripPrefix(stats.fertileStart) + ' ~ ' + stripPrefix(stats.fertileEnd) + '</b></div>' +
+          '</div>' +
+          '<p class="ovul-note">배란·가임기는 다음 생리 예정일에서 역산한 <b>추정치</b>예요. 피임·임신 계획의 근거로 삼지 마세요.</p>' +
         '</div>';
     } else {
       html +=
