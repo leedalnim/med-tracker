@@ -129,16 +129,8 @@
 
   /* ===== 데이터 ===== */
   // 첫 실행 시 카탈로그의 약들을 기본 등록 (수정·삭제 가능)
-  function getMeds() {
-    if (!storage.has(KEY.meds)) {
-      var seeded = MED_CATALOG.map(function (c, i) {
-        return { id: 'cat-' + i, name: c.name, unit: c.unit, type: c.type, intervalHours: c.intervalHours, maxPerDay: c.maxPerDay };
-      });
-      storage.set(KEY.meds, seeded);
-      return seeded;
-    }
-    return storage.get(KEY.meds, []);
-  }
+  // 홈에는 직접 등록한 약만 표시 — 자주 쓰는 약 목록은 약 추가 폼에서 선택
+  function getMeds() { return storage.get(KEY.meds, []); }
   function saveMeds(meds) { storage.set(KEY.meds, meds); }
   function medById(id) {
     return getMeds().find(function (m) { return m.id === id; }) || null;
@@ -147,7 +139,7 @@
   // 기존 저장 데이터 보정
   function migrate() {
     var ver = storage.get(KEY.migr, 0);
-    if (ver >= 4) return;
+    if (ver >= 5) return;
     // v1~2: type 기본값, 이지엔6프로 최대치(허가 용량 1일 4캡슐) 수정
     if (ver < 2 && storage.has(KEY.meds)) {
       var meds = storage.get(KEY.meds, []).map(function (m) {
@@ -175,7 +167,15 @@
         return m;
       }));
     }
-    storage.set(KEY.migr, 4);
+    // v5: 자동 등록됐던 기본 약 정리 — 복용 기록이 없는 것만 제거 (홈은 직접 등록한 약만)
+    if (ver < 5 && storage.has(KEY.meds)) {
+      var doses5 = storage.get(KEY.doses, []);
+      storage.set(KEY.meds, storage.get(KEY.meds, []).filter(function (m) {
+        if (String(m.id).indexOf('cat-') !== 0) return true;
+        return doses5.some(function (d) { return d.medId === m.id; });
+      }));
+    }
+    storage.set(KEY.migr, 5);
   }
 
   function getDoses() { return storage.get(KEY.doses, []); }

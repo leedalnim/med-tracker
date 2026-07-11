@@ -11,6 +11,7 @@
   --btn: #111114;
   --btn-text: #FFFFFF;
   --shadow: 0 2px 10px rgba(17, 17, 20, 0.05);
+  --nav-bg: rgba(255, 255, 255, 0.72);
   --radius: 22px;
   --radius-sm: 14px;
 }
@@ -27,6 +28,7 @@
     --btn: #F4F4F5;
     --btn-text: #111114;
     --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    --nav-bg: rgba(35, 35, 40, 0.58);
   }
 }
 
@@ -670,9 +672,11 @@ input, select {
   transform: translateX(-50%);
   display: flex;
   gap: 2px;
-  background: var(--card);
+  background: var(--nav-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
   border-radius: 999px;
-  box-shadow: 0 6px 24px rgba(17, 17, 20, 0.12);
+  box-shadow: 0 6px 24px rgba(17, 17, 20, 0.14);
   padding: 7px;
   z-index: 10;
 }
