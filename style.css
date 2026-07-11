@@ -229,7 +229,28 @@ input, select {
   touch-action: pan-y;
   will-change: transform;
 }
-.swipe-wrap.open .swipe-content { transform: translateX(-84px); }
+.swipe-wrap.open .swipe-content { transform: translateX(calc(-1 * var(--swipe-open, 84px))); }
+
+/* 복용 내역: 밀면 수정·삭제가 나오는 행 */
+.row-swipe { --swipe-open: 140px; margin-bottom: 0; border-radius: 0; }
+.row-swipe .swipe-actions {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  display: flex;
+}
+.row-swipe .sw-act {
+  width: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+}
+.row-swipe .sw-act.edit { background: var(--text-dim); }
+.row-swipe .sw-act.del { background: var(--accent); }
+.row-swipe .swipe-content { background: var(--card); }
+.d-swipe-hint { font-size: 11px; color: var(--text-dim); opacity: 0.55; }
 .med-name { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; }
 .status-line {
   font-size: 12.5px;

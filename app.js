@@ -112,6 +112,15 @@
     if (h > 0) return h + '시간';
     return m + '분';
   }
+  function fmtElapsed(ms) { // 경과 시간(내림) — '지남' 표기용
+    var totalMin = Math.floor(ms / 60000);
+    if (totalMin < 1) return '방금';
+    var h = Math.floor(totalMin / 60);
+    var m = totalMin % 60;
+    if (h > 0 && m > 0) return h + '시간 ' + m + '분';
+    if (h > 0) return h + '시간';
+    return m + '분';
+  }
   function timeInputValue(ts) {
     var d = new Date(ts);
     return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
@@ -450,10 +459,10 @@
     var innerTime, innerLabel, innerId, centerCls, statusLine;
     if (s.reached) {
       centerCls = ' max'; innerTime = '오늘<br>최대'; innerLabel = '';
-      statusLine = s.last ? '마지막 복용 ' + esc(fmtTime(s.last.ts)) : '';
+      statusLine = s.last ? '마지막 복용 후 <span class="hl">' + esc(fmtElapsed(Date.now() - s.last.ts)) + '</span> 지남' : '';
     } else if (s.ready) {
       centerCls = ' ready'; innerTime = '지금<br>가능'; innerLabel = '';
-      statusLine = s.last ? '마지막 복용 ' + esc(fmtTime(s.last.ts)) : '아직 복용 기록이 없어요';
+      statusLine = s.last ? '마지막 복용 후 <span class="hl">' + esc(fmtElapsed(Date.now() - s.last.ts)) + '</span> 지남' : '아직 복용 기록이 없어요';
     } else {
       centerCls = ''; innerTime = esc(fmtCountdown(s.remainMs)); innerLabel = '남음';
       innerId = ' id="rc-' + esc(med.id) + '"';
@@ -477,12 +486,12 @@
     var topLabel, bigVal, bigId, subLabel, cls;
     if (s.reached) {
       cls = ' hl'; topLabel = '오늘 최대';
-      bigVal = s.last ? fmtTime(s.last.ts) : '';
-      subLabel = s.last ? '마지막 복용' : '';
+      bigVal = s.last ? fmtElapsed(Date.now() - s.last.ts) : '';
+      subLabel = s.last ? '마지막 복용 후 지남' : '';
     } else if (s.ready) {
       cls = ' hl'; topLabel = '지금 복용 가능';
-      bigVal = s.last ? fmtTime(s.last.ts) : '';
-      subLabel = s.last ? '마지막 복용' : '기록 없음';
+      bigVal = s.last ? fmtElapsed(Date.now() - s.last.ts) : '';
+      subLabel = s.last ? '마지막 복용 후 지남' : '기록 없음';
     } else {
       cls = ''; topLabel = '다음 복용까지';
       bigVal = fmtCountdown(s.remainMs);  // 카운트다운 (매초 감소)
@@ -559,55 +568,59 @@
     );
   }
 
-  var SWIPE_OPEN = 84; // 삭제 버튼 폭(px)
+  function closeAllSwipe(except) {
+    app.querySelectorAll('.swipe-wrap.open').forEach(function (w) {
+      if (w !== except) w.classList.remove('open');
+    });
+  }
+
+  // 공용 스와이프: 왼쪽으로 밀면 뒤 액션이 드러남. onTap은 밀지 않고 탭했을 때 실행
+  function attachSwipe(wrap, openPx, onTap) {
+    var content = wrap.querySelector('.swipe-content');
+    var startX = 0, startY = 0, dragging = false, moved = false, horiz = false, baseOpen = false;
+    content.addEventListener('pointerdown', function (e) {
+      startX = e.clientX; startY = e.clientY;
+      dragging = true; moved = false; horiz = false;
+      baseOpen = wrap.classList.contains('open');
+      content.style.transition = 'none';
+    });
+    content.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var dx = e.clientX - startX, dy = e.clientY - startY;
+      if (!horiz && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) horiz = true;
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
+      if (horiz) {
+        if (e.cancelable) e.preventDefault();
+        var t = Math.max(-openPx, Math.min(0, (baseOpen ? -openPx : 0) + dx));
+        content.style.transform = 'translateX(' + t + 'px)';
+      }
+    });
+    function end(e) {
+      if (!dragging) return;
+      dragging = false;
+      content.style.transition = '';
+      content.style.transform = '';
+      if (horiz) {
+        var dx = (e.clientX || startX) - startX;
+        var t = (baseOpen ? -openPx : 0) + dx;
+        if (t < -openPx / 2) { closeAllSwipe(wrap); wrap.classList.add('open'); }
+        else wrap.classList.remove('open');
+      }
+    }
+    content.addEventListener('pointerup', end);
+    content.addEventListener('pointercancel', end);
+    content.addEventListener('click', function (e) {
+      if (e.target.closest('button') || e.target.closest('input')) return;
+      if (moved) { e.preventDefault(); return; }
+      if (wrap.classList.contains('open')) { wrap.classList.remove('open'); return; }
+      if (onTap) onTap();
+    });
+  }
 
   function bindMedCards() {
-    function closeAll(except) {
-      app.querySelectorAll('.swipe-wrap.open').forEach(function (w) {
-        if (w !== except) w.classList.remove('open');
-      });
-    }
-
     app.querySelectorAll('.swipe-wrap').forEach(function (wrap) {
       var content = wrap.querySelector('.swipe-content');
-      var startX = 0, startY = 0, dragging = false, moved = false, horiz = false, baseOpen = false;
-
-      content.addEventListener('pointerdown', function (e) {
-        startX = e.clientX; startY = e.clientY;
-        dragging = true; moved = false; horiz = false;
-        baseOpen = wrap.classList.contains('open');
-        content.style.transition = 'none';
-      });
-      content.addEventListener('pointermove', function (e) {
-        if (!dragging) return;
-        var dx = e.clientX - startX, dy = e.clientY - startY;
-        if (!horiz && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) horiz = true;
-        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
-        if (horiz) {
-          if (e.cancelable) e.preventDefault();
-          var t = Math.max(-SWIPE_OPEN, Math.min(0, (baseOpen ? -SWIPE_OPEN : 0) + dx));
-          content.style.transform = 'translateX(' + t + 'px)';
-        }
-      });
-      function end(e) {
-        if (!dragging) return;
-        dragging = false;
-        content.style.transition = '';
-        content.style.transform = '';
-        if (horiz) {
-          var dx = (e.clientX || startX) - startX;
-          var t = (baseOpen ? -SWIPE_OPEN : 0) + dx;
-          if (t < -SWIPE_OPEN / 2) { closeAll(wrap); wrap.classList.add('open'); }
-          else wrap.classList.remove('open');
-        }
-      }
-      content.addEventListener('pointerup', end);
-      content.addEventListener('pointercancel', end);
-
-      content.addEventListener('click', function (e) {
-        if (e.target.closest('button') || e.target.closest('input')) return;
-        if (moved) { e.preventDefault(); return; }        // 스와이프였으면 상세 이동 안 함
-        if (wrap.classList.contains('open')) { wrap.classList.remove('open'); return; } // 열려있으면 닫기
+      attachSwipe(wrap, 84, function () {
         go('medDetail', { detailMedId: content.getAttribute('data-med') });
       });
     });
@@ -706,13 +719,17 @@
               '<button class="text-btn" data-md-cancel>닫기</button>' +
             '</div>';
         } else {
+          // 밀면 수정·삭제가 드러나는 스와이프 행 (시각은 한글 서브텍스트)
           listHtml +=
-            '<div class="dose-row">' +
-              '<span class="d-time">' + esc(fmtTimeKo(d.ts)) + '</span>' +
-              '<span class="d-actions">' +
-                '<button class="ico-btn" data-md-edit="' + esc(d.id) + '" aria-label="시간 수정">' + ICON.edit + '</button>' +
-                '<button class="ico-btn danger" data-md-del="' + esc(d.id) + '" aria-label="삭제">' + ICON.trash + '</button>' +
-              '</span>' +
+            '<div class="swipe-wrap row-swipe">' +
+              '<div class="swipe-actions">' +
+                '<button class="sw-act edit" data-md-edit="' + esc(d.id) + '">수정</button>' +
+                '<button class="sw-act del" data-md-del="' + esc(d.id) + '">삭제</button>' +
+              '</div>' +
+              '<div class="dose-row swipe-content">' +
+                '<span class="d-time">' + esc(fmtTimeKo(d.ts)) + '</span>' +
+                '<span class="d-swipe-hint">‹ 밀기</span>' +
+              '</div>' +
             '</div>';
         }
       });
@@ -722,12 +739,10 @@
     var nowD = new Date();
     var addForm = state.doseAdd
       ? '<div class="card">' +
-          '<div class="form-row">' +
-            '<div class="form-field"><label for="da-date">날짜</label>' +
-              '<input id="da-date" type="date" max="' + todayKey() + '" value="' + todayKey() + '"></div>' +
-            '<div class="form-field"><label for="da-time">시각</label>' +
-              '<input id="da-time" type="time" step="1" value="' + timeInputValue(nowD.getTime()) + '"></div>' +
-          '</div>' +
+          '<div class="form-field"><label for="da-date">날짜</label>' +
+            '<input id="da-date" type="date" max="' + todayKey() + '" value="' + todayKey() + '"></div>' +
+          '<div class="form-field"><label for="da-time">시각</label>' +
+            '<input id="da-time" type="time" step="1" value="' + timeInputValue(nowD.getTime()) + '"></div>' +
           '<p class="form-error" id="da-error"></p>' +
           '<div class="form-actions">' +
             '<button class="pill-btn secondary" id="da-cancel">취소</button>' +
@@ -767,6 +782,7 @@
         go('home');
       }
     });
+    app.querySelectorAll('.row-swipe').forEach(function (wrap) { attachSwipe(wrap, 140, null); });
     app.querySelectorAll('[data-md-edit]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         state.timeEdit = { kind: 'dose', id: btn.getAttribute('data-md-edit') };
@@ -825,18 +841,21 @@
       });
     }
 
-    // 대기 중이면 히어로 링 카운트다운을 매초 갱신 (폼 열려 있으면 멈춤)
+    // 대기 중일 때만 히어로 카운트다운을 매초 갱신 (복용 가능/최대·폼 열림 땐 멈춤)
     if (!isCheck && !state.doseAdd && !state.timeEdit) {
-      tickTimer = setInterval(function () {
-        if (state.screen !== 'medDetail') { clearInterval(tickTimer); return; }
-        var s = computeInterval(med);
-        var el = document.getElementById('hero-count');
-        if (s.ready || s.reached || !el) {
-          renderMedDetail(); // 상태 전환(복용 가능 등) → 전체 갱신
-          return;
-        }
-        el.textContent = fmtCountdown(s.remainMs);
-      }, 1000);
+      var s0 = computeInterval(med);
+      if (!s0.ready && !s0.reached) {
+        tickTimer = setInterval(function () {
+          if (state.screen !== 'medDetail') { clearInterval(tickTimer); return; }
+          var s = computeInterval(med);
+          var el = document.getElementById('hero-count');
+          if (s.ready || s.reached || !el) {
+            renderMedDetail(); // 대기 → 복용 가능으로 전환된 순간 1회 전체 갱신
+            return;
+          }
+          el.textContent = fmtCountdown(s.remainMs);
+        }, 1000);
+      }
     }
   }
 
