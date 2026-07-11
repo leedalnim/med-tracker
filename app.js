@@ -1271,28 +1271,19 @@
     var editing = state.editMedId ? medById(state.editMedId) : null;
     var curType = editing ? (editing.type || 'interval') : 'interval';
 
-    // 약 이름: 셀렉트박스에서 선택, 없으면 '직접 입력…' (새 약 추가 시에만)
-    var nameFieldHtml;
-    if (!editing) {
-      nameFieldHtml =
-        '<div class="form-field">' +
-          '<label for="f-name-sel">약 이름</label>' +
-          '<select id="f-name-sel">' +
-            '<option value="" selected disabled>약을 선택하세요</option>' +
-            MED_CATALOG.map(function (c, i) {
-              return '<option value="' + i + '">' + esc(c.name) + '</option>';
-            }).join('') +
-            '<option value="custom">직접 입력…</option>' +
-          '</select>' +
-          '<input id="f-name" type="text" placeholder="약 이름 입력" style="display:none;margin-top:10px">' +
-        '</div>';
-    } else {
-      nameFieldHtml =
-        '<div class="form-field">' +
-          '<label for="f-name">약 이름</label>' +
-          '<input id="f-name" type="text" placeholder="예: 타이레놀 500mg" value="' + esc(editing.name) + '">' +
-        '</div>';
-    }
+    // 약 이름: 타이핑 검색 + 목록 선택 겸용(datalist). 목록 이름과 정확히 일치하면 자동 입력
+    var nameFieldHtml =
+      '<div class="form-field">' +
+        '<label for="f-name">약 이름</label>' +
+        '<input id="f-name" list="med-catalog" type="text" autocomplete="off" ' +
+          'placeholder="약 이름 검색 또는 직접 입력" value="' + (editing ? esc(editing.name) : '') + '">' +
+        '<datalist id="med-catalog">' +
+          MED_CATALOG.map(function (c) {
+            return '<option value="' + esc(c.name) + '"></option>';
+          }).join('') +
+        '</datalist>' +
+        (editing ? '' : '<p class="form-hint">목록에서 고르면 간격·최대치·단위가 자동 입력돼요. 없는 약은 그냥 이름을 입력하세요.</p>') +
+      '</div>';
 
     // 단위: 직접 입력 대신 선택
     var UNITS = ['정', '캡슐', '포', '회'];
@@ -1354,31 +1345,20 @@
     });
     applyTypeUI();
 
-    // 약 이름 셀렉트: 목록 선택 → 이름·기록방식·간격·최대·단위 자동 입력 (수정 가능),
-    // '직접 입력…' → 텍스트 입력칸 표시
-    var nameSel = document.getElementById('f-name-sel');
-    if (nameSel) {
-      var nameInput = document.getElementById('f-name');
-      nameSel.addEventListener('change', function () {
-        if (nameSel.value === 'custom') {
-          nameInput.style.display = '';
-          nameInput.value = '';
-          nameInput.focus();
-          return;
-        }
-        nameInput.style.display = 'none';
-        var c = MED_CATALOG[Number(nameSel.value)];
-        nameInput.value = c.name;
-        document.getElementById('f-interval').value = c.intervalHours != null ? c.intervalHours : '';
-        document.getElementById('f-max').value = c.maxPerDay != null ? c.maxPerDay : '';
-        var unitSel = document.getElementById('f-unit');
-        if (![].some.call(unitSel.options, function (o) { return o.value === c.unit; })) {
-          unitSel.add(new Option(c.unit, c.unit));
-        }
-        unitSel.value = c.unit;
-        setType(c.type || 'interval');
-      });
-    }
+    // 약 이름 입력(datalist): 목록 이름과 정확히 일치하면 간격·최대·단위·방식 자동 입력
+    var nameInput = document.getElementById('f-name');
+    nameInput.addEventListener('input', function () {
+      var c = MED_CATALOG.find(function (m) { return m.name === nameInput.value; });
+      if (!c) return; // 직접 입력한 이름은 그대로 둠
+      document.getElementById('f-interval').value = c.intervalHours != null ? c.intervalHours : '';
+      document.getElementById('f-max').value = c.maxPerDay != null ? c.maxPerDay : '';
+      var unitSel = document.getElementById('f-unit');
+      if (![].some.call(unitSel.options, function (o) { return o.value === c.unit; })) {
+        unitSel.add(new Option(c.unit, c.unit));
+      }
+      unitSel.value = c.unit;
+      setType(c.type || 'interval');
+    });
 
     document.getElementById('back').addEventListener('click', backFromForm);
     document.getElementById('cancel').addEventListener('click', backFromForm);
@@ -1399,11 +1379,7 @@
       }
       errEl.style.display = 'none';
 
-      if (!name) {
-        fail(editing ? '약 이름을 입력해 주세요.' : '약을 선택하거나 직접 입력해 주세요.',
-          editing ? 'f-name' : 'f-name-sel');
-        return;
-      }
+      if (!name) { fail('약 이름을 검색하거나 직접 입력해 주세요.', 'f-name'); return; }
       if (curType === 'interval') {
         if (!(interval > 0)) { fail('최소 간격(시간)을 입력해 주세요.', 'f-interval'); return; }
         if (!(max > 0)) { fail('1일 최대 개수를 입력해 주세요.', 'f-max'); return; }
