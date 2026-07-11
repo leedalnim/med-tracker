@@ -36,9 +36,17 @@
 
 html { -webkit-text-size-adjust: 100%; }
 
+@font-face {
+  font-family: 'Pretendard Variable';
+  src: url('./fonts/PretendardVariable.woff2') format('woff2-variations');
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
-    "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.45;
@@ -541,22 +549,6 @@ input, select {
   color: var(--text-dim);
   margin-top: 8px;
   line-height: 1.5;
-}
-
-/* 자주 쓰는 약 선택 칩 */
-.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip {
-  border: 1.5px solid var(--line);
-  border-radius: 999px;
-  padding: 8px 13px;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--text-dim);
-}
-.chip.active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
 }
 
 /* 단위 선택 */

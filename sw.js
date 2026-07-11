@@ -1,11 +1,12 @@
 /* 복약 트래커 서비스워커 — 오프라인 캐싱 */
-var CACHE_NAME = 'med-tracker-v21';
+var CACHE_NAME = 'med-tracker-v22';
 var ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './manifest.json',
+  './fonts/PretendardVariable.woff2',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',

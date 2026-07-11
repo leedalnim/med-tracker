@@ -1126,18 +1126,26 @@
     var editing = state.editMedId ? medById(state.editMedId) : null;
     var curType = editing ? (editing.type || 'interval') : 'interval';
 
-    // 미리 등록된 약 선택 칩 (새 약 추가 시에만)
-    var catalogHtml = '';
+    // 약 이름: 셀렉트박스에서 선택, 없으면 '직접 입력…' (새 약 추가 시에만)
+    var nameFieldHtml;
     if (!editing) {
-      catalogHtml =
+      nameFieldHtml =
         '<div class="form-field">' +
-          '<label>자주 쓰는 약 (선택하면 자동 입력)</label>' +
-          '<div class="chip-row">' +
+          '<label for="f-name-sel">약 이름</label>' +
+          '<select id="f-name-sel">' +
+            '<option value="" selected disabled>약을 선택하세요</option>' +
             MED_CATALOG.map(function (c, i) {
-              return '<button type="button" class="chip" data-cat="' + i + '">' + esc(c.name) + '</button>';
+              return '<option value="' + i + '">' + esc(c.name) + '</option>';
             }).join('') +
-          '</div>' +
-          '<p class="form-hint">목록에 없는 약은 아래에 직접 입력하세요. 선택한 값도 수정할 수 있어요.</p>' +
+            '<option value="custom">직접 입력…</option>' +
+          '</select>' +
+          '<input id="f-name" type="text" placeholder="약 이름 입력" style="display:none;margin-top:10px">' +
+        '</div>';
+    } else {
+      nameFieldHtml =
+        '<div class="form-field">' +
+          '<label for="f-name">약 이름</label>' +
+          '<input id="f-name" type="text" placeholder="예: 타이레놀 500mg" value="' + esc(editing.name) + '">' +
         '</div>';
     }
 
@@ -1155,7 +1163,7 @@
         '<h1>' + (editing ? '약 수정' : '약 추가') + '</h1>' +
       '</div>' +
       '<div class="card">' +
-        catalogHtml +
+        nameFieldHtml +
         '<div class="form-field">' +
           '<label>기록 방식</label>' +
           '<div class="type-select">' +
@@ -1164,10 +1172,6 @@
             '<button type="button" data-type="check" class="' + (curType === 'check' ? 'active' : '') + '">' +
               '<b>복용 체크</b><span>먹었는지만 기록</span></button>' +
           '</div>' +
-        '</div>' +
-        '<div class="form-field">' +
-          '<label for="f-name">약 이름</label>' +
-          '<input id="f-name" type="text" placeholder="예: 타이레놀 500mg" value="' + (editing ? esc(editing.name) : '') + '">' +
         '</div>' +
         '<div class="form-row">' +
           '<div class="form-field" id="field-interval">' +
@@ -1205,11 +1209,21 @@
     });
     applyTypeUI();
 
-    // 칩 선택 → 이름·기록방식·간격·최대·단위 자동 입력 (모두 수정 가능)
-    app.querySelectorAll('[data-cat]').forEach(function (chip) {
-      chip.addEventListener('click', function () {
-        var c = MED_CATALOG[Number(chip.getAttribute('data-cat'))];
-        document.getElementById('f-name').value = c.name;
+    // 약 이름 셀렉트: 목록 선택 → 이름·기록방식·간격·최대·단위 자동 입력 (수정 가능),
+    // '직접 입력…' → 텍스트 입력칸 표시
+    var nameSel = document.getElementById('f-name-sel');
+    if (nameSel) {
+      var nameInput = document.getElementById('f-name');
+      nameSel.addEventListener('change', function () {
+        if (nameSel.value === 'custom') {
+          nameInput.style.display = '';
+          nameInput.value = '';
+          nameInput.focus();
+          return;
+        }
+        nameInput.style.display = 'none';
+        var c = MED_CATALOG[Number(nameSel.value)];
+        nameInput.value = c.name;
         document.getElementById('f-interval').value = c.intervalHours != null ? c.intervalHours : '';
         document.getElementById('f-max').value = c.maxPerDay != null ? c.maxPerDay : '';
         var unitSel = document.getElementById('f-unit');
@@ -1218,13 +1232,8 @@
         }
         unitSel.value = c.unit;
         setType(c.type || 'interval');
-        app.querySelectorAll('[data-cat]').forEach(function (b) { b.classList.toggle('active', b === chip); });
       });
-    });
-    var nameInput = document.getElementById('f-name');
-    nameInput.addEventListener('input', function () {
-      app.querySelectorAll('[data-cat]').forEach(function (b) { b.classList.remove('active'); });
-    });
+    }
 
     document.getElementById('back').addEventListener('click', backFromForm);
     document.getElementById('cancel').addEventListener('click', backFromForm);
@@ -1245,7 +1254,11 @@
       }
       errEl.style.display = 'none';
 
-      if (!name) { fail('약 이름을 입력해 주세요.', 'f-name'); return; }
+      if (!name) {
+        fail(editing ? '약 이름을 입력해 주세요.' : '약을 선택하거나 직접 입력해 주세요.',
+          editing ? 'f-name' : 'f-name-sel');
+        return;
+      }
       if (curType === 'interval') {
         if (!(interval > 0)) { fail('최소 간격(시간)을 입력해 주세요.', 'f-interval'); return; }
         if (!(max > 0)) { fail('1일 최대 개수를 입력해 주세요.', 'f-max'); return; }
