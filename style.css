@@ -5,8 +5,8 @@
   --text: #111114;
   --text-dim: #86868E;
   --line: #ECECEF;
-  --accent: #B4524B;          /* 채도 낮은 벽돌 레드 */
-  --accent-soft: rgba(180, 82, 75, 0.10);
+  --accent: #D65B54;          /* 산뜻한 코랄 레드 (칙칙함 완화) */
+  --accent-soft: rgba(214, 91, 84, 0.10);
   --accent-text: #FFFFFF;
   --btn: #111114;
   --btn-text: #FFFFFF;
@@ -26,8 +26,8 @@
   --text: #F4F4F5;
   --text-dim: #9A9AA3;
   --line: #2A2A30;
-  --accent: #C97A74;
-  --accent-soft: rgba(201, 122, 116, 0.14);
+  --accent: #E68B84;
+  --accent-soft: rgba(230, 139, 132, 0.16);
   --btn: #F4F4F5;
   --btn-text: #111114;
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
@@ -44,8 +44,8 @@
     --text: #F4F4F5;
     --text-dim: #9A9AA3;
     --line: #2A2A30;
-    --accent: #C97A74;
-    --accent-soft: rgba(201, 122, 116, 0.14);
+    --accent: #E68B84;
+    --accent-soft: rgba(230, 139, 132, 0.16);
     --btn: #F4F4F5;
     --btn-text: #111114;
     --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
