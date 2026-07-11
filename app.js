@@ -39,6 +39,7 @@
     { name: '이지엔6프로 (덱시부프로펜 300mg)', unit: '캡슐', type: 'interval', intervalHours: 4, maxPerDay: 4 },
     { name: '부루펜정 400mg (이부프로펜)', unit: '정', type: 'interval', intervalHours: 4, maxPerDay: 3 },
     { name: '탁센 (나프록센 250mg)', unit: '캡슐', type: 'interval', intervalHours: 6, maxPerDay: 5 },
+    { name: '부스코판당의정 10mg', unit: '정', type: 'interval', intervalHours: 4, maxPerDay: 10 },
     { name: '로수바이브정', unit: '정', type: 'check', intervalHours: null, maxPerDay: 1 },
     { name: '본비바정 150mg (월 1회)', unit: '정', type: 'check', intervalHours: null, maxPerDay: 1 },
     { name: '라바로브정', unit: '정', type: 'check', intervalHours: null, maxPerDay: 1 },
@@ -653,6 +654,7 @@
         '<div class="bh-titlerow">' +
           '<h1>' + esc(med.name) + '</h1>' +
           '<button class="ico-btn sm" id="edit-med-info" aria-label="약 정보 수정">' + ICON.edit + '</button>' +
+          '<button class="ico-btn sm danger" id="delete-med" aria-label="약 삭제">' + ICON.trash + '</button>' +
         '</div>' +
       '</div>' +
       topCard +
@@ -670,6 +672,12 @@
     });
     document.getElementById('edit-med-info').addEventListener('click', function () {
       go('medForm', { editMedId: med.id, returnTo: 'medDetail' });
+    });
+    document.getElementById('delete-med').addEventListener('click', function () {
+      if (window.confirm('"' + med.name + '"을(를) 삭제할까요?\n복용 이력은 남아있어요.')) {
+        saveMeds(getMeds().filter(function (mm) { return mm.id !== med.id; }));
+        go('home');
+      }
     });
     app.querySelectorAll('[data-md-edit]').forEach(function (btn) {
       btn.addEventListener('click', function () {
