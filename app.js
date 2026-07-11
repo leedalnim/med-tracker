@@ -1479,8 +1479,8 @@
       'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
   }
   var ICON = {
-    // pill (lucide)
-    pillPlus: lucide('<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>', 'btn-ico'),
+    // pill (lucide) — 캡슐 안쪽을 아이콘 색의 저투명도로 채워 은은한 fill 느낌
+    pillPlus: lucide('<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" fill="currentColor" fill-opacity="0.22"/><path d="m8.5 8.5 7 7"/>', 'btn-ico'),
     // pencil (lucide)
     edit: lucide('<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>'),
     // trash-2 (lucide)
