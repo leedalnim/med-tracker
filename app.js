@@ -756,8 +756,6 @@
         '<button id="back" aria-label="뒤로">←</button>' +
         '<div class="bh-titlerow">' +
           '<h1>' + esc(med.name) + '</h1>' +
-          '<button class="ico-btn sm" id="edit-med-info" aria-label="약 정보 수정">' + ICON.edit + '</button>' +
-          '<button class="ico-btn sm danger" id="delete-med" aria-label="약 삭제">' + ICON.trash + '</button>' +
         '</div>' +
       '</div>' +
       topCard +
@@ -766,7 +764,11 @@
         (state.doseAdd ? '' : '<button class="text-btn" id="dose-add-btn">+ 기록 추가</button>') +
       '</div>' +
       addForm +
-      '<div class="card">' + listHtml + '</div>';
+      '<div class="card">' + listHtml + '</div>' +
+      '<div class="med-manage">' +
+        '<button class="pill-btn secondary" id="edit-med-info">' + ICON.edit + '약 정보 수정</button>' +
+        '<button class="pill-btn danger-outline" id="delete-med">' + ICON.trash + '약 삭제</button>' +
+      '</div>';
 
     document.getElementById('back').addEventListener('click', function () { go('home'); });
     document.getElementById('detail-log').addEventListener('click', function () {
@@ -1242,7 +1244,7 @@
     html += '<div class="settings-group"><h2>달력</h2>' +
       '<button class="toggle-row" id="period-toggle">' +
         '<div><div class="m-title">생리주기 기능</div>' +
-        '<div class="m-desc">켜면 달력에서 생리 기록과 다음 예정일 계산을 쓸 수 있어요</div></div>' +
+        '<div class="m-desc">달력에서 생리 기록·예측 사용</div></div>' +
         '<span class="switch' + (isPeriodOn() ? ' on' : '') + '"></span>' +
       '</button></div>';
 
@@ -1297,7 +1299,7 @@
         '<div class="combo" id="name-combo">' +
           '<input id="f-name" type="text" autocomplete="off" ' +
             'placeholder="약 이름 검색 또는 직접 입력" value="' + (editing ? esc(editing.name) : '') + '">' +
-          '<button type="button" class="combo-caret" id="name-caret" aria-label="약 목록 열기">▾</button>' +
+          '<button type="button" class="combo-caret" id="name-caret" aria-label="약 목록 열기">' + ICON.chevron + '</button>' +
           '<ul class="combo-list" id="name-list" hidden>' +
             MED_CATALOG.map(function (c, i) {
               return '<li data-cat="' + i + '">' + esc(c.name) + '</li>';
@@ -1465,13 +1467,26 @@
   }
 
   /* ===== 하단 내비 ===== */
+  // Lucide 아이콘 (viewBox 24, stroke 2, round)
+  function lucide(inner, cls) {
+    return '<svg class="lucide' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
+  }
   var ICON = {
-    pillPlus: '<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.2" y="10.6" width="12.6" height="6.6" rx="3.3" transform="rotate(-45 9.5 13.9)"/><path d="M7.2 11.6l4.6 4.6"/><path d="M18.5 3.5v6M15.5 6.5h6"/></svg>',
-    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4.5-1L20 7.5a2.1 2.1 0 0 0-3-3L5.5 16 4 20z"/></svg>',
-    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/><path d="M10 11v6M14 11v6"/></svg>',
-    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.2 12 4l9 7.2"/><path d="M5.5 10v10h13V10"/></svg>',
-    cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"/></svg>',
-    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/></svg>'
+    // pill (lucide)
+    pillPlus: lucide('<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>', 'btn-ico'),
+    // pencil (lucide)
+    edit: lucide('<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>'),
+    // trash-2 (lucide)
+    trash: lucide('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>'),
+    // house (lucide)
+    home: lucide('<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+    // calendar-days (lucide)
+    cal: lucide('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
+    // settings-2 / sliders (lucide)
+    gear: lucide('<path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>'),
+    // chevron-down (lucide)
+    chevron: lucide('<path d="m6 9 6 6 6-6"/>')
   };
 
   function bottomNavHtml(active) {
