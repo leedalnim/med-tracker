@@ -1458,9 +1458,17 @@
 
   // 서비스워커 등록 (미리보기 등 지원 안 되는 환경은 조용히 통과)
   if ('serviceWorker' in navigator) {
+    // 새 버전이 제어를 넘겨받으면 한 번 자동 새로고침해 최신 화면 적용
+    var hadController = !!navigator.serviceWorker.controller;
+    var refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (refreshing || !hadController) return; // 첫 설치 시엔 새로고침 안 함
+      refreshing = true;
+      window.location.reload();
+    });
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('./sw.js').then(function (reg) {
-        if (reg && reg.update) reg.update(); // 새 배포를 최대한 빨리 반영
+        if (reg && reg.update) reg.update(); // 새 배포를 최대한 빨리 확인
       }).catch(function () { /* noop */ });
     });
   }
