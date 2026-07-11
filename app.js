@@ -511,33 +511,92 @@
       warn = '<div class="warn-banner">오늘 최대치 ' + med.maxPerDay + med.unit + ' 초과 — 현재 ' + todays.length + med.unit + '</div>';
     }
 
+    // 스와이프 삭제: 카드를 왼쪽으로 밀면 뒤에서 삭제 버튼이 드러남
     return (
-      '<section class="card med-card" data-med="' + esc(med.id) + '" role="button" tabindex="0">' +
-        '<div class="mc-row">' +
-          ringHtml +
-          '<div class="mc-main">' +
-            titleRow +
-            (statusLine ? '<p class="status-line">' + statusLine + '</p>' : '') +
-            actionsRow +
+      '<div class="swipe-wrap">' +
+        '<button class="swipe-delete" data-del-med="' + esc(med.id) + '" aria-label="약 삭제">' + ICON.trash + '<span>삭제</span></button>' +
+        '<section class="card med-card swipe-content" data-med="' + esc(med.id) + '" role="button" tabindex="0">' +
+          '<div class="mc-row">' +
+            ringHtml +
+            '<div class="mc-main">' +
+              titleRow +
+              (statusLine ? '<p class="status-line">' + statusLine + '</p>' : '') +
+              actionsRow +
+            '</div>' +
           '</div>' +
-        '</div>' +
-        warn +
-      '</section>'
+          warn +
+        '</section>' +
+      '</div>'
     );
   }
 
+  var SWIPE_OPEN = 84; // 삭제 버튼 폭(px)
+
   function bindMedCards() {
-    app.querySelectorAll('[data-med]').forEach(function (card) {
-      card.addEventListener('click', function (e) {
+    function closeAll(except) {
+      app.querySelectorAll('.swipe-wrap.open').forEach(function (w) {
+        if (w !== except) w.classList.remove('open');
+      });
+    }
+
+    app.querySelectorAll('.swipe-wrap').forEach(function (wrap) {
+      var content = wrap.querySelector('.swipe-content');
+      var startX = 0, startY = 0, dragging = false, moved = false, horiz = false, baseOpen = false;
+
+      content.addEventListener('pointerdown', function (e) {
+        startX = e.clientX; startY = e.clientY;
+        dragging = true; moved = false; horiz = false;
+        baseOpen = wrap.classList.contains('open');
+        content.style.transition = 'none';
+      });
+      content.addEventListener('pointermove', function (e) {
+        if (!dragging) return;
+        var dx = e.clientX - startX, dy = e.clientY - startY;
+        if (!horiz && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) horiz = true;
+        if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
+        if (horiz) {
+          if (e.cancelable) e.preventDefault();
+          var t = Math.max(-SWIPE_OPEN, Math.min(0, (baseOpen ? -SWIPE_OPEN : 0) + dx));
+          content.style.transform = 'translateX(' + t + 'px)';
+        }
+      });
+      function end(e) {
+        if (!dragging) return;
+        dragging = false;
+        content.style.transition = '';
+        content.style.transform = '';
+        if (horiz) {
+          var dx = (e.clientX || startX) - startX;
+          var t = (baseOpen ? -SWIPE_OPEN : 0) + dx;
+          if (t < -SWIPE_OPEN / 2) { closeAll(wrap); wrap.classList.add('open'); }
+          else wrap.classList.remove('open');
+        }
+      }
+      content.addEventListener('pointerup', end);
+      content.addEventListener('pointercancel', end);
+
+      content.addEventListener('click', function (e) {
         if (e.target.closest('button') || e.target.closest('input')) return;
-        go('medDetail', { detailMedId: card.getAttribute('data-med') });
+        if (moved) { e.preventDefault(); return; }        // 스와이프였으면 상세 이동 안 함
+        if (wrap.classList.contains('open')) { wrap.classList.remove('open'); return; } // 열려있으면 닫기
+        go('medDetail', { detailMedId: content.getAttribute('data-med') });
       });
     });
+
     app.querySelectorAll('[data-log]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         logDose(btn.getAttribute('data-log'));
         state.timeEdit = null;
         renderTrackerHome();
+      });
+    });
+    app.querySelectorAll('[data-del-med]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var med = medById(btn.getAttribute('data-del-med'));
+        if (med && window.confirm('"' + med.name + '"을(를) 삭제할까요?\n복용 이력은 남아있어요.')) {
+          saveMeds(getMeds().filter(function (mm) { return mm.id !== med.id; }));
+          renderTrackerHome();
+        }
       });
     });
   }
@@ -978,10 +1037,11 @@
         '<div class="card">' +
           '<div class="form-row">' +
             '<div class="form-field"><label for="p-start">시작일</label>' +
-              '<input id="p-start" type="date" max="' + tk + '"></div>' +
+              '<input id="p-start" type="date" max="' + tk + '" placeholder="년-월-일"></div>' +
             '<div class="form-field"><label for="p-end">종료일</label>' +
-              '<input id="p-end" type="date" max="' + tk + '"></div>' +
+              '<input id="p-end" type="date" max="' + tk + '" placeholder="년-월-일"></div>' +
           '</div>' +
+          '<p class="form-hint">시작일과 종료일을 <b>년-월-일</b> 순서로 선택하세요. 하루만 있었다면 시작일만 골라도 돼요.</p>' +
           '<p class="form-error" id="p-error"></p>' +
           '<div class="form-actions">' +
             '<button class="pill-btn secondary" id="p-cancel">취소</button>' +
