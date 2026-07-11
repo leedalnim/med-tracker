@@ -231,26 +231,32 @@ input, select {
 }
 .swipe-wrap.open .swipe-content { transform: translateX(calc(-1 * var(--swipe-open, 84px))); }
 
-/* 복용 내역: 밀면 수정·삭제가 나오는 행 */
-.row-swipe { --swipe-open: 140px; margin-bottom: 0; border-radius: 0; }
+/* 복용 내역: 밀면 시각은 그대로, 수정·삭제 버튼이 오른쪽에서 슬라이드 인 */
+.row-swipe { --swipe-open: 140px; margin-bottom: 0; border-radius: 0; overflow: hidden; }
 .row-swipe .swipe-actions {
   position: absolute;
   top: 0; right: 0; bottom: 0;
+  width: var(--swipe-open);
   display: flex;
+  z-index: 2;
+  transform: translateX(var(--swipe-open));  /* 평소엔 오른쪽 밖으로 숨김 */
+  transition: transform 0.22s ease;
 }
+.row-swipe.open .swipe-actions { transform: translateX(0); }
+.row-swipe.open .swipe-content { transform: none; }  /* 콘텐츠는 고정 */
 .row-swipe .sw-act {
-  width: 70px;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   color: #fff;
 }
 .row-swipe .sw-act.edit { background: var(--text-dim); }
 .row-swipe .sw-act.del { background: var(--accent); }
-.row-swipe .swipe-content { background: var(--card); }
-.d-swipe-hint { font-size: 11px; color: var(--text-dim); opacity: 0.55; }
+.d-swipe-hint { display: inline-flex; color: var(--text-dim); opacity: 0.4; }
+.d-swipe-hint .lucide { width: 16px; height: 16px; }
 .med-name { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; }
 .status-line {
   font-size: 12.5px;
@@ -652,6 +658,9 @@ input, select {
 }
 .form-field input {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   background: var(--bg);
   border: 1.5px solid var(--line);
   border-radius: var(--radius-sm);
@@ -659,6 +668,13 @@ input, select {
   outline: none;
 }
 .form-field input:focus { border-color: var(--text); }
+/* iOS 사파리에서 날짜/시각 입력이 컨테이너를 넘치지 않도록 */
+.form-field input[type="date"],
+.form-field input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+}
 .form-row { display: flex; gap: 12px; }
 .form-row .form-field { flex: 1; }
 .form-actions { display: flex; gap: 12px; margin-top: 8px; }

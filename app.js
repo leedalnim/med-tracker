@@ -574,36 +574,42 @@
     });
   }
 
-  // 공용 스와이프: 왼쪽으로 밀면 뒤 액션이 드러남. onTap은 밀지 않고 탭했을 때 실행
-  function attachSwipe(wrap, openPx, onTap) {
+  // 공용 스와이프. moveActions=false: 콘텐츠가 왼쪽으로 밀림(카드).
+  // moveActions=true: 콘텐츠는 고정, 뒤 액션이 오른쪽에서 슬라이드 인(복용 내역 행).
+  function attachSwipe(wrap, openPx, onTap, moveActions) {
     var content = wrap.querySelector('.swipe-content');
-    var startX = 0, startY = 0, dragging = false, moved = false, horiz = false, baseOpen = false;
+    var mover = moveActions ? wrap.querySelector('.swipe-actions') : content;
+    var closedX = moveActions ? openPx : 0;
+    var openX = moveActions ? 0 : -openPx;
+    var lo = Math.min(openX, closedX), hi = Math.max(openX, closedX);
+    var startX = 0, startY = 0, lastDx = 0, dragging = false, moved = false, horiz = false, baseOpen = false;
     content.addEventListener('pointerdown', function (e) {
-      startX = e.clientX; startY = e.clientY;
+      startX = e.clientX; startY = e.clientY; lastDx = 0;
       dragging = true; moved = false; horiz = false;
       baseOpen = wrap.classList.contains('open');
-      content.style.transition = 'none';
+      mover.style.transition = 'none';
     });
     content.addEventListener('pointermove', function (e) {
       if (!dragging) return;
       var dx = e.clientX - startX, dy = e.clientY - startY;
+      lastDx = dx;
       if (!horiz && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 6) horiz = true;
       if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
       if (horiz) {
         if (e.cancelable) e.preventDefault();
-        var t = Math.max(-openPx, Math.min(0, (baseOpen ? -openPx : 0) + dx));
-        content.style.transform = 'translateX(' + t + 'px)';
+        var t = Math.max(lo, Math.min(hi, (baseOpen ? openX : closedX) + dx));
+        mover.style.transform = 'translateX(' + t + 'px)';
       }
     });
-    function end(e) {
+    function end() {
       if (!dragging) return;
       dragging = false;
-      content.style.transition = '';
-      content.style.transform = '';
+      mover.style.transition = '';
+      mover.style.transform = '';
       if (horiz) {
-        var dx = (e.clientX || startX) - startX;
-        var t = (baseOpen ? -openPx : 0) + dx;
-        if (t < -openPx / 2) { closeAllSwipe(wrap); wrap.classList.add('open'); }
+        var t = (baseOpen ? openX : closedX) + lastDx;
+        var opened = moveActions ? (t < openPx / 2) : (t < -openPx / 2);
+        if (opened) { closeAllSwipe(wrap); wrap.classList.add('open'); }
         else wrap.classList.remove('open');
       }
     }
@@ -728,7 +734,7 @@
               '</div>' +
               '<div class="dose-row swipe-content">' +
                 '<span class="d-time">' + esc(fmtTimeKo(d.ts)) + '</span>' +
-                '<span class="d-swipe-hint">‹ 밀기</span>' +
+                '<span class="d-swipe-hint">' + ICON.chevronL + '</span>' +
               '</div>' +
             '</div>';
         }
@@ -784,7 +790,7 @@
         go('home');
       }
     });
-    app.querySelectorAll('.row-swipe').forEach(function (wrap) { attachSwipe(wrap, 140, null); });
+    app.querySelectorAll('.row-swipe').forEach(function (wrap) { attachSwipe(wrap, 140, null, true); });
     app.querySelectorAll('[data-md-edit]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         state.timeEdit = { kind: 'dose', id: btn.getAttribute('data-md-edit') };
@@ -1486,7 +1492,9 @@
     // settings-2 / sliders (lucide)
     gear: lucide('<path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>'),
     // chevron-down (lucide)
-    chevron: lucide('<path d="m6 9 6 6 6-6"/>')
+    chevron: lucide('<path d="m6 9 6 6 6-6"/>'),
+    // chevron-left (lucide)
+    chevronL: lucide('<path d="m15 18-6-6 6-6"/>')
   };
 
   function bottomNavHtml(active) {
