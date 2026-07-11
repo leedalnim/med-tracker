@@ -644,6 +644,44 @@ input, select {
   line-height: 1.5;
 }
 
+/* 약 이름 콤보 (검색 + 목록 선택) */
+.combo { position: relative; }
+.combo input { padding-right: 44px; }
+.combo-caret {
+  position: absolute;
+  right: 4px; top: 4px; bottom: 4px;
+  width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.combo-list {
+  list-style: none;
+  position: absolute;
+  left: 0; right: 0;
+  top: calc(100% + 6px);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(17, 17, 20, 0.14);
+  z-index: 30;
+  max-height: 244px;
+  overflow-y: auto;
+  padding: 6px;
+}
+.combo-list li {
+  padding: 12px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.combo-list li:active { background: var(--accent-soft); color: var(--accent); }
+@media (hover: hover) {
+  .combo-list li:hover { background: var(--accent-soft); color: var(--accent); }
+}
+
 /* 단위 선택 */
 .form-field select {
   width: 100%;

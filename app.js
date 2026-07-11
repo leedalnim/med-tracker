@@ -1271,17 +1271,20 @@
     var editing = state.editMedId ? medById(state.editMedId) : null;
     var curType = editing ? (editing.type || 'interval') : 'interval';
 
-    // 약 이름: 타이핑 검색 + 목록 선택 겸용(datalist). 목록 이름과 정확히 일치하면 자동 입력
+    // 약 이름: 직접 만든 콤보(검색 + 목록 선택). datalist가 iOS에서 안 뜨는 문제 대응
     var nameFieldHtml =
       '<div class="form-field">' +
         '<label for="f-name">약 이름</label>' +
-        '<input id="f-name" list="med-catalog" type="text" autocomplete="off" ' +
-          'placeholder="약 이름 검색 또는 직접 입력" value="' + (editing ? esc(editing.name) : '') + '">' +
-        '<datalist id="med-catalog">' +
-          MED_CATALOG.map(function (c) {
-            return '<option value="' + esc(c.name) + '"></option>';
-          }).join('') +
-        '</datalist>' +
+        '<div class="combo" id="name-combo">' +
+          '<input id="f-name" type="text" autocomplete="off" ' +
+            'placeholder="약 이름 검색 또는 직접 입력" value="' + (editing ? esc(editing.name) : '') + '">' +
+          '<button type="button" class="combo-caret" id="name-caret" aria-label="약 목록 열기">▾</button>' +
+          '<ul class="combo-list" id="name-list" hidden>' +
+            MED_CATALOG.map(function (c, i) {
+              return '<li data-cat="' + i + '">' + esc(c.name) + '</li>';
+            }).join('') +
+          '</ul>' +
+        '</div>' +
         (editing ? '' : '<p class="form-hint">목록에서 고르면 간격·최대치·단위가 자동 입력돼요. 없는 약은 그냥 이름을 입력하세요.</p>') +
       '</div>';
 
@@ -1345,11 +1348,12 @@
     });
     applyTypeUI();
 
-    // 약 이름 입력(datalist): 목록 이름과 정확히 일치하면 간격·최대·단위·방식 자동 입력
+    // 약 이름 콤보: 목록 선택/검색 + 직접 입력
     var nameInput = document.getElementById('f-name');
-    nameInput.addEventListener('input', function () {
-      var c = MED_CATALOG.find(function (m) { return m.name === nameInput.value; });
-      if (!c) return; // 직접 입력한 이름은 그대로 둠
+    var nameList = document.getElementById('name-list');
+    var nameCaret = document.getElementById('name-caret');
+    function fillFromCatalog(c) {
+      nameInput.value = c.name;
       document.getElementById('f-interval').value = c.intervalHours != null ? c.intervalHours : '';
       document.getElementById('f-max').value = c.maxPerDay != null ? c.maxPerDay : '';
       var unitSel = document.getElementById('f-unit');
@@ -1358,6 +1362,37 @@
       }
       unitSel.value = c.unit;
       setType(c.type || 'interval');
+    }
+    function renderNameList(filter) {
+      var f = (filter || '').trim().toLowerCase();
+      var any = false;
+      [].forEach.call(nameList.children, function (li) {
+        var nm = MED_CATALOG[Number(li.getAttribute('data-cat'))].name.toLowerCase();
+        var show = !f || nm.indexOf(f) >= 0;
+        li.hidden = !show;
+        if (show) any = true;
+      });
+      nameList.hidden = !any;
+    }
+    nameCaret.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (nameList.hidden) { renderNameList(''); } else { nameList.hidden = true; }
+    });
+    nameInput.addEventListener('focus', function () { renderNameList(nameInput.value); });
+    nameInput.addEventListener('input', function () {
+      renderNameList(nameInput.value);
+      var c = MED_CATALOG.find(function (m) { return m.name === nameInput.value; });
+      if (c) fillFromCatalog(c); // 이름이 정확히 일치하면 자동 입력
+    });
+    nameList.addEventListener('click', function (e) {
+      var li = e.target.closest('[data-cat]');
+      if (!li) return;
+      fillFromCatalog(MED_CATALOG[Number(li.getAttribute('data-cat'))]);
+      nameList.hidden = true;
+    });
+    document.addEventListener('click', function (e) {
+      var combo = document.getElementById('name-combo');
+      if (combo && !e.target.closest('#name-combo')) nameList.hidden = true;
     });
 
     document.getElementById('back').addEventListener('click', backFromForm);
