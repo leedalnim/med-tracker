@@ -27,6 +27,7 @@
     doses: 'mt.doses',        // [{id, medId, ts}]
     period: 'mt.period',      // ['YYYY-MM-DD', ...] 생리로 표시한 날
     periodOn: 'mt.periodOn',  // 생리주기 기능 사용 여부 (기본 꺼짐, 설정에서 켬)
+    theme: 'mt.theme',        // 'system' | 'light' | 'dark'
     migr: 'mt.migr'           // 데이터 마이그레이션 버전
   };
 
@@ -183,6 +184,26 @@
   function saveDoses(doses) { storage.set(KEY.doses, doses); }
 
   function isPeriodOn() { return storage.get(KEY.periodOn, false); } // 기본 꺼짐, 설정에서 켬
+
+  /* ===== 화면 테마 ===== */
+  function getTheme() { return storage.get(KEY.theme, 'system'); }
+  function resolvedDark(t) {
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  function applyTheme() {
+    var t = getTheme();
+    var root = document.documentElement;
+    if (t === 'system') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', t);
+    // 상태바 색(standalone PWA)도 맞춤
+    var color = resolvedDark(t) ? '#0E0E10' : '#F4F4F5';
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
+      m.removeAttribute('media');
+      m.setAttribute('content', color);
+    });
+  }
 
   function dosesForMed(medId) {
     return getDoses().filter(function (d) { return d.medId === medId; });
@@ -1185,6 +1206,19 @@
     });
     html += '<button class="pill-btn secondary" id="add-med">+ 약 추가</button></div>';
 
+    // 화면 테마: 시스템 / 라이트 / 다크
+    var curTheme = getTheme();
+    function segBtn(v, label) {
+      return '<button type="button" data-theme-set="' + v + '" class="' +
+        (curTheme === v ? 'active' : '') + '">' + label + '</button>';
+    }
+    html += '<div class="settings-group"><h2>화면 테마</h2>' +
+      '<div class="seg" id="theme-seg">' +
+        segBtn('system', '시스템') + segBtn('light', '라이트') + segBtn('dark', '다크') +
+      '</div>' +
+      '<p class="settings-note">시스템은 폰 설정(라이트/다크)을 따라가요.</p>' +
+    '</div>';
+
     // 생리주기: 기본 꺼짐 — 여기서 켜면 달력에 기록 기능이 나타남
     html += '<div class="settings-group"><h2>달력</h2>' +
       '<button class="toggle-row" id="period-toggle">' +
@@ -1201,6 +1235,13 @@
 
     document.getElementById('back').addEventListener('click', function () { go('home'); });
 
+    app.querySelectorAll('[data-theme-set]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        storage.set(KEY.theme, btn.getAttribute('data-theme-set'));
+        applyTheme();
+        renderSettings();
+      });
+    });
     document.getElementById('period-toggle').addEventListener('click', function () {
       storage.set(KEY.periodOn, !isPeriodOn());
       renderSettings();
@@ -1424,7 +1465,15 @@
 
   /* ===== 시작 ===== */
   migrate();
+  applyTheme();
   render();
+
+  // 시스템 테마 변경 추종 (테마가 '시스템'일 때만 상태바 색 갱신)
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+      if (getTheme() === 'system') applyTheme();
+    });
+  }
 
   // 탭 복귀 시 화면 갱신 (자정 넘김·백그라운드 경과 반영)
   document.addEventListener('visibilitychange', function () {

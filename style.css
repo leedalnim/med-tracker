@@ -18,8 +18,27 @@
   --radius-sm: 14px;
 }
 
+/* 다크 토큰 (한 곳에서 관리) */
+:root[data-theme="dark"],
+:root.dark-tokens {
+  --bg: #0E0E10;
+  --card: #1B1B1F;
+  --text: #F4F4F5;
+  --text-dim: #9A9AA3;
+  --line: #2A2A30;
+  --accent: #C97A74;
+  --accent-soft: rgba(201, 122, 116, 0.14);
+  --btn: #F4F4F5;
+  --btn-text: #111114;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  --nav-bg: rgba(35, 35, 40, 0.58);
+  --ovul: #A6A2E0;
+  --ovul-soft: rgba(166, 162, 224, 0.18);
+}
+
+/* 시스템 설정 자동 추종 — 단, 사용자가 라이트/다크를 명시하면(data-theme) 그 값이 우선 */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
     --bg: #0E0E10;
     --card: #1B1B1F;
     --text: #F4F4F5;
@@ -638,6 +657,19 @@ input, select {
 }
 .form-field select:focus { border-color: var(--text); }
 .form-row .form-unit { flex: 0 0 88px; }
+
+/* 세그먼트 선택 (화면 테마 등) */
+.seg { display: flex; gap: 8px; }
+.seg button {
+  flex: 1;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 13px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.seg button.active { border-color: var(--text); color: var(--text); }
 
 /* 기록 방식 선택 */
 .type-select { display: flex; gap: 10px; }
