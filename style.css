@@ -646,7 +646,12 @@ input, select {
 .dose-row .d-time { font-size: 13px; color: var(--text-dim); font-weight: 600; }
 .dose-row .d-actions { display: flex; }
 /* 복용 내역 행: 시각을 크게(주 정보), 날짜 헤더는 작은 라벨 → 위계 부여 */
-.row-swipe .dose-row { padding: 15px 4px; }
+.row-swipe .dose-row { padding: 15px 4px; border-bottom: none; }
+/* 행 사이 구분선 — 내부 dose-row는 wrapper별로 항상 last-of-type라 여기서 처리.
+   날짜 헤더 바로 앞 행은 구분선을 빼 그룹 경계를 헤더 여백으로만 표현 */
+.row-swipe { border-bottom: 1px solid var(--line); }
+.row-swipe:last-child,
+.row-swipe:has(+ .history-date) { border-bottom: none; }
 .row-swipe .d-time {
   font-size: 18px;
   font-weight: 800;
