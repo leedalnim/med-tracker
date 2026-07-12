@@ -772,7 +772,7 @@
       addForm +
       '<div class="card">' + listHtml + '</div>' +
       '<div class="med-manage">' +
-        '<button class="pill-btn secondary" id="edit-med-info">' + ICON.edit + '약 정보 수정</button>' +
+        '<button class="pill-btn secondary" id="edit-med-info">' + ICON.edit + '복용 정보 수정</button>' +
         '<button class="pill-btn danger-outline" id="delete-med">' + ICON.trash + '약 삭제</button>' +
       '</div>';
 
@@ -1121,11 +1121,11 @@
         '<div class="card">' +
           '<div class="form-row">' +
             '<div class="form-field"><label for="p-start">시작일</label>' +
-              '<input id="p-start" type="date" max="' + tk + '" placeholder="년-월-일"></div>' +
+              '<input id="p-start" type="date" max="' + tk + '" value="' + tk + '"></div>' +
             '<div class="form-field"><label for="p-end">종료일</label>' +
-              '<input id="p-end" type="date" max="' + tk + '" placeholder="년-월-일"></div>' +
+              '<input id="p-end" type="date" max="' + tk + '" value="' + tk + '"></div>' +
           '</div>' +
-          '<p class="form-hint">시작일과 종료일을 <b>년-월-일</b> 순서로 선택하세요. 하루만 있었다면 시작일만 골라도 돼요.</p>' +
+          '<p class="form-hint">기본값은 <b>오늘</b>이에요. 날짜를 눌러 시작일·종료일을 바꿔 주세요. 하루만 있었다면 그대로 저장해도 돼요.</p>' +
           '<p class="form-error" id="p-error"></p>' +
           '<div class="form-actions">' +
             '<button class="pill-btn secondary" id="p-cancel">취소</button>' +
@@ -1149,14 +1149,24 @@
         var range = ep.start === ep.end
           ? esc(fmtKeyShort(ep.start).replace(' · 오늘', ''))
           : esc(fmtKeyShort(ep.start).replace(' · 오늘', '')) + ' ~ ' + esc(fmtKeyShort(ep.end).replace(' · 오늘', ''));
+        // 밀면 삭제가 드러나는 스와이프 행 — 날짜 범위(주 정보) / 기간·주기(부 정보) 위계
         rows +=
-          '<div class="dose-row">' +
-            '<div><div class="d-name">' + range + '</div>' +
-            '<div class="d-time">' + len + '일' + (cycleTxt ? ' · ' + cycleTxt : '') + '</div></div>' +
-            '<button class="ico-btn danger" data-ep-del="' + ep.start + '|' + ep.end + '" aria-label="기록 삭제">' + ICON.trash + '</button>' +
+          '<div class="swipe-wrap row-swipe single">' +
+            '<div class="swipe-actions">' +
+              '<button class="sw-act del" data-ep-del="' + ep.start + '|' + ep.end + '">삭제</button>' +
+            '</div>' +
+            '<div class="dose-row ep-row swipe-content">' +
+              '<div class="ep-main">' +
+                '<div class="ep-range">' + range + '</div>' +
+                '<div class="ep-meta"><span class="ep-len">' + len + '일</span>' +
+                  (cycleTxt ? '<span class="ep-dot">·</span><span class="ep-cycle">' + cycleTxt + '</span>' : '') +
+                '</div>' +
+              '</div>' +
+              '<span class="d-swipe-hint">' + ICON.chevronL + '</span>' +
+            '</div>' +
           '</div>';
       }
-      html += '<section class="card">' + rows + '</section>';
+      html += '<div class="card">' + rows + '</div>';
     }
 
     app.innerHTML = html;
@@ -1189,6 +1199,7 @@
         renderPeriod();
       });
     }
+    app.querySelectorAll('.row-swipe').forEach(function (wrap) { attachSwipe(wrap, 84, null, true); });
     app.querySelectorAll('[data-ep-del]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var p = btn.getAttribute('data-ep-del').split('|');
@@ -1479,8 +1490,8 @@
       'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
   }
   var ICON = {
-    // pill (lucide) — 캡슐 안쪽을 아이콘 색의 저투명도로 채워 은은한 fill 느낌
-    pillPlus: lucide('<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" fill="currentColor" fill-opacity="0.22"/><path d="m8.5 8.5 7 7"/>', 'btn-ico'),
+    // pill (lucide) — 아래쪽 절반만 아이콘 색의 저투명도로 채워 은은한 fill 느낌
+    pillPlus: lucide('<path d="M15.5 15.5 10.5 20.5a4.95 4.95 0 0 1-7-7l5-5Z" fill="currentColor" fill-opacity="0.22" stroke="none"/><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>', 'btn-ico'),
     // pencil (lucide)
     edit: lucide('<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>'),
     // trash-2 (lucide)

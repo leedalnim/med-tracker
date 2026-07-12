@@ -253,8 +253,15 @@ input, select {
   font-weight: 800;
   color: #fff;
 }
+.row-swipe.single { --swipe-open: 84px; }  /* 삭제 버튼 하나만 있을 때 */
 .row-swipe .sw-act.edit { background: var(--text-dim); }
 .row-swipe .sw-act.del { background: var(--accent); }
+/* 생리 기록 행: 날짜 범위(주 정보) / 기간·주기(부 정보) 위계 */
+.ep-row { align-items: center; }
+.ep-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ep-range { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: -0.3px; }
+.ep-meta { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.ep-meta .ep-dot { opacity: 0.5; }
 .d-swipe-hint { display: inline-flex; color: var(--text-dim); opacity: 0.4; }
 .d-swipe-hint .lucide { width: 16px; height: 16px; }
 .med-name { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; }
