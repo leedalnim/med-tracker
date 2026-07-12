@@ -1218,13 +1218,13 @@
 
   /* ===== 설정 ===== */
   function renderSettings() {
-    app.className = 'no-nav';
+    app.className = '';
 
     var html =
-      '<div class="back-head">' +
-        '<button id="back" aria-label="뒤로">←</button>' +
+      '<header class="screen-head">' +
         '<h1>설정</h1>' +
-      '</div>';
+        '<p class="sub">약 관리와 앱 환경을 설정해요</p>' +
+      '</header>';
 
     html += '<div class="settings-group"><h2>내 약 관리</h2>';
     var meds = getMeds();
@@ -1274,9 +1274,10 @@
       '<p class="settings-note">모든 데이터는 이 기기의 브라우저에만 저장돼요. 서버로 전송되지 않아요.<br>' +
       '이 앱은 사용자가 등록한 간격·최대치·날짜를 기준으로 계산만 해요.</p>';
 
+    html += bottomNavHtml('settings');
     app.innerHTML = html;
 
-    document.getElementById('back').addEventListener('click', function () { go('home'); });
+    bindBottomNav();
 
     app.querySelectorAll('[data-theme-set]').forEach(function (btn) {
       btn.addEventListener('click', function () {
