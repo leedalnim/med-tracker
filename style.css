@@ -659,12 +659,16 @@ input, select {
 .row-swipe { border-bottom: 1px solid var(--line); }
 .row-swipe:last-child,
 .row-swipe:has(+ .history-date) { border-bottom: none; }
-.row-swipe .d-time {
+/* 시각이 주 정보인 행(약 상세 복용 내역)만 시각을 크게 */
+.row-swipe.time-lead .d-time {
   font-size: 18px;
   font-weight: 800;
   color: var(--text);
   letter-spacing: -0.3px;
 }
+/* 달력 하루 패널: 약 이름이 주 정보, 시각은 부 정보(오른쪽 힌트와 묶음) */
+.dp-right { display: flex; align-items: center; gap: 8px; flex: none; }
+.dose-row .d-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dp-empty { color: var(--text-dim); font-size: 13px; padding: 14px 2px 6px; }
 
 /* ===== 폼 ===== */

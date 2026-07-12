@@ -727,7 +727,7 @@
         } else {
           // 밀면 수정·삭제가 드러나는 스와이프 행 (시각은 한글 서브텍스트)
           listHtml +=
-            '<div class="swipe-wrap row-swipe">' +
+            '<div class="swipe-wrap row-swipe time-lead">' +
               '<div class="swipe-actions">' +
                 '<button class="sw-act edit" data-md-edit="' + esc(d.id) + '">수정</button>' +
                 '<button class="sw-act del" data-md-del="' + esc(d.id) + '">삭제</button>' +
@@ -1014,14 +1014,18 @@
               '<button class="text-btn" data-dp-cancel>닫기</button>' +
             '</div>';
         } else {
+          // 밀면 수정·삭제가 드러나는 스와이프 행 (복용 내역과 동일 패턴)
           html +=
-            '<div class="dose-row">' +
-              '<span class="d-name">' + esc(med ? med.name : '삭제된 약') + '</span>' +
-              '<span class="d-time">' + esc(fmtTime(d.ts)) + '</span>' +
-              '<span class="d-actions">' +
-                '<button class="ico-btn" data-dp-edit="' + esc(d.id) + '" aria-label="시간 수정">' + ICON.edit + '</button>' +
-                '<button class="ico-btn danger" data-dp-del="' + esc(d.id) + '" aria-label="삭제">' + ICON.trash + '</button>' +
-              '</span>' +
+            '<div class="swipe-wrap row-swipe">' +
+              '<div class="swipe-actions">' +
+                '<button class="sw-act edit" data-dp-edit="' + esc(d.id) + '">수정</button>' +
+                '<button class="sw-act del" data-dp-del="' + esc(d.id) + '">삭제</button>' +
+              '</div>' +
+              '<div class="dose-row swipe-content">' +
+                '<span class="d-name">' + esc(med ? med.name : '삭제된 약') + '</span>' +
+                '<span class="dp-right"><span class="d-time">' + esc(fmtTime(d.ts)) + '</span>' +
+                  '<span class="d-swipe-hint">' + ICON.chevronL + '</span></span>' +
+              '</div>' +
             '</div>';
         }
       });
@@ -1038,6 +1042,7 @@
         renderCalendar();
       });
     }
+    app.querySelectorAll('.day-panel .row-swipe').forEach(function (wrap) { attachSwipe(wrap, 140, null, true); });
     app.querySelectorAll('[data-dp-edit]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         state.timeEdit = { kind: 'dose', id: btn.getAttribute('data-dp-edit') };
