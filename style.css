@@ -205,6 +205,10 @@ input, select {
   position: relative;
   margin-bottom: 14px;
   border-radius: var(--radius);
+  /* 하나의 둥근 클립으로 뒤 버튼을 잘라내 모서리에 코럴이 비치지 않게.
+     카드 그림자는 wrap에 두어 클립되지 않도록 함 */
+  overflow: hidden;
+  box-shadow: var(--shadow);
 }
 .swipe-delete {
   position: absolute;
@@ -212,7 +216,6 @@ input, select {
   width: 84px;
   background: var(--accent);
   color: #fff;
-  border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -225,14 +228,16 @@ input, select {
 .swipe-content {
   position: relative;
   margin-bottom: 0 !important;
+  box-shadow: none;
   transition: transform 0.22s ease;
   touch-action: pan-y;
   will-change: transform;
 }
 .swipe-wrap.open .swipe-content { transform: translateX(calc(-1 * var(--swipe-open, 84px))); }
 
-/* 복용 내역: 밀면 시각은 그대로, 수정·삭제 버튼이 오른쪽에서 슬라이드 인 */
-.row-swipe { --swipe-open: 140px; margin-bottom: 0; border-radius: 0; overflow: hidden; }
+/* 복용 내역: 밀면 시각은 그대로, 수정·삭제 버튼이 오른쪽에서 슬라이드 인
+   (카드 안의 행이라 그림자는 없음) */
+.row-swipe { --swipe-open: 140px; margin-bottom: 0; border-radius: 0; overflow: hidden; box-shadow: none; }
 .row-swipe .swipe-actions {
   position: absolute;
   top: 0; right: 0; bottom: 0;
@@ -267,8 +272,6 @@ input, select {
   top: 0; right: 0; bottom: 0;
   width: var(--swipe-open);
   display: flex;
-  border-radius: var(--radius);
-  overflow: hidden;
 }
 .ep-act {
   flex: 1;
