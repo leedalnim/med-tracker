@@ -452,17 +452,27 @@
       '</svg>';
   }
 
+  // 마지막 복용 후 이 시간이 지나면 '경과 시간' 표시를 숨기고 깔끔한 '복용 가능'으로 초기화
+  var ELAPSED_RESET_MS = 24 * 3600 * 1000;
+  function recentElapsed(last) { // 24시간 이내면 경과 문자열, 아니면 null
+    if (!last) return null;
+    var el = Date.now() - last.ts;
+    return el < ELAPSED_RESET_MS ? fmtElapsed(el) : null;
+  }
+
   // 홈 카드용 소형 링 — 원 안엔 남은 시간 카운트다운(H:MM:SS, 매초 감소),
   // 원 밖엔 다음 복용 가능 시각을 라벨과 함께
   function buildIntervalRing(med, sizeClass) {
     var s = computeInterval(med);
     var innerTime, innerLabel, innerId, centerCls, statusLine;
+    var elap = recentElapsed(s.last);
     if (s.reached) {
       centerCls = ' max'; innerTime = '오늘<br>최대'; innerLabel = '';
-      statusLine = s.last ? '마지막 복용 후 <span class="hl">' + esc(fmtElapsed(Date.now() - s.last.ts)) + '</span> 지남' : '';
+      statusLine = elap ? '마지막 복용 후 <span class="hl">' + esc(elap) + '</span> 지남' : '';
     } else if (s.ready) {
       centerCls = ' ready'; innerTime = '지금<br>가능'; innerLabel = '';
-      statusLine = s.last ? '마지막 복용 후 <span class="hl">' + esc(fmtElapsed(Date.now() - s.last.ts)) + '</span> 지남' : '아직 복용 기록이 없어요';
+      statusLine = elap ? '마지막 복용 후 <span class="hl">' + esc(elap) + '</span> 지남'
+        : (s.last ? '' : '아직 복용 기록이 없어요');
     } else {
       centerCls = ''; innerTime = esc(fmtCountdown(s.remainMs)); innerLabel = '남음';
       innerId = ' id="rc-' + esc(med.id) + '"';
@@ -484,14 +494,15 @@
   function buildDetailHero(med) {
     var s = computeInterval(med);
     var topLabel, bigVal, bigId, subLabel, cls;
+    var elap = recentElapsed(s.last); // 24h 이내만, 아니면 null → 경과 숨김(초기화)
     if (s.reached) {
       cls = ' hl'; topLabel = '오늘 최대';
-      bigVal = s.last ? fmtElapsed(Date.now() - s.last.ts) : '';
-      subLabel = s.last ? '마지막 복용 후 지남' : '';
+      bigVal = elap || '';
+      subLabel = elap ? '마지막 복용 후 지남' : '';
     } else if (s.ready) {
       cls = ' hl'; topLabel = '지금 복용 가능';
-      bigVal = s.last ? fmtElapsed(Date.now() - s.last.ts) : '';
-      subLabel = s.last ? '마지막 복용 후 지남' : '기록 없음';
+      bigVal = elap || '';
+      subLabel = elap ? '마지막 복용 후 지남' : (s.last ? '' : '기록 없음');
     } else {
       cls = ''; topLabel = '다음 복용까지';
       bigVal = fmtCountdown(s.remainMs);  // 카운트다운 (매초 감소)
@@ -1102,76 +1113,76 @@
       html +=
         '<div class="card">' +
           '<div class="detail-stats">' +
-            '<div class="ds-item"><div class="ds-num">' + ddLabel + '</div><div class="ds-label">다음 예정일</div></div>' +
             '<div class="ds-item"><div class="ds-num">' + stats.avgCycle + '일</div><div class="ds-label">평균 주기</div></div>' +
             '<div class="ds-item"><div class="ds-num">' + avgLen + '일</div><div class="ds-label">평균 기간</div></div>' +
           '</div>' +
-          '<p class="detail-status">다음 예정일 <b>' + stripPrefix(stats.nextStart) + '</b> · 최근 기록 평균 기준</p>' +
           '<div class="ovul-box">' +
+            '<div class="ovul-row"><span class="ovul-dot np"></span><span class="ovul-label">다음 예정일</span>' +
+              '<b>' + stripPrefix(stats.nextStart) + '</b><span class="ovul-dd">' + ddLabel + '</span></div>' +
             '<div class="ovul-row"><span class="ovul-dot ov"></span><span class="ovul-label">배란 예정일</span>' +
               '<b>' + stripPrefix(stats.ovulation) + '</b><span class="ovul-dd">' + ovLabel + '</span></div>' +
             '<div class="ovul-row"><span class="ovul-dot fe"></span><span class="ovul-label">가임기</span>' +
               '<b>' + stripPrefix(stats.fertileStart) + ' ~ ' + stripPrefix(stats.fertileEnd) + '</b></div>' +
           '</div>' +
-          '<p class="ovul-note">배란·가임기는 다음 생리 예정일에서 역산한 <b>추정치</b>예요. 피임·임신 계획의 근거로 삼지 마세요.</p>' +
+          '<p class="ovul-note">최근 기록 평균으로 계산한 <b>예측</b>이에요. 배란·가임기는 추정치이니 피임·임신 계획의 근거로 삼지 마세요.</p>' +
         '</div>';
     } else {
       html +=
         '<div class="cycle-info"><span class="dot"></span>기록이 2번 이상 쌓이면 다음 예정일을 계산해요</div>';
     }
 
-    // 기록 추가
-    if (state.periodAdd) {
+    // 기록 추가/수정 — 시작일 + 기간(일)만 입력, 종료일은 자동 계산
+    var editing = !!state.periodEdit;
+    if (state.periodAdd || editing) {
+      var lenSum = 0; eps.forEach(function (e) { lenSum += diffDays(e.start, e.end) + 1; });
+      var defaultLen = eps.length ? Math.max(1, Math.round(lenSum / eps.length)) : 5;
+      var startVal = editing ? state.periodEdit.start : tk;
+      var lenVal = editing ? (diffDays(state.periodEdit.start, state.periodEdit.end) + 1) : defaultLen;
       html +=
         '<div class="card">' +
           '<div class="form-row">' +
             '<div class="form-field"><label for="p-start">시작일</label>' +
-              '<input id="p-start" type="date" max="' + tk + '" value="' + tk + '"></div>' +
-            '<div class="form-field"><label for="p-end">종료일</label>' +
-              '<input id="p-end" type="date" max="' + tk + '" value="' + tk + '"></div>' +
+              '<input id="p-start" type="date" max="' + tk + '" value="' + startVal + '"></div>' +
+            '<div class="form-field"><label for="p-len">기간(일)</label>' +
+              '<input id="p-len" type="number" min="1" max="14" inputmode="numeric" value="' + lenVal + '"></div>' +
           '</div>' +
-          '<p class="form-hint">기본값은 <b>오늘</b>이에요. 날짜를 눌러 시작일·종료일을 바꿔 주세요. 하루만 있었다면 그대로 저장해도 돼요.</p>' +
+          '<p class="form-hint">시작일과 기간만 넣으면 <b>종료일은 자동</b>이에요. <span id="p-endpreview" class="end-preview"></span></p>' +
           '<p class="form-error" id="p-error"></p>' +
           '<div class="form-actions">' +
             '<button class="pill-btn secondary" id="p-cancel">취소</button>' +
-            '<button class="pill-btn" id="p-save">저장</button>' +
+            '<button class="pill-btn" id="p-save">' + (editing ? '수정 저장' : '저장') + '</button>' +
           '</div>' +
         '</div>';
     } else {
       html += '<button class="pill-btn secondary" id="p-add">+ 지난 생리 기록 추가</button>';
     }
 
-    // 기록 목록 (최근 회차부터)
+    // 기록 목록 (최근 회차부터) — 박스당 하나, 탭하면 수정 / 밀면 삭제(홈 카드 방식)
     html += '<h2 class="section-title">기록 (' + eps.length + '회)</h2>';
     if (!eps.length) {
       html += '<div class="empty">아직 기록이 없어요.<br>달력에서 날짜를 누르거나 위 버튼으로 추가해 주세요.</div>';
     } else {
-      var rows = '';
       for (var ei = eps.length - 1; ei >= 0; ei--) {
         var ep = eps[ei];
         var len = diffDays(ep.start, ep.end) + 1;
         var cycleTxt = ei > 0 ? '주기 ' + diffDays(eps[ei - 1].start, ep.start) + '일' : '';
-        var range = ep.start === ep.end
-          ? esc(fmtKeyShort(ep.start).replace(' · 오늘', ''))
-          : esc(fmtKeyShort(ep.start).replace(' · 오늘', '')) + ' ~ ' + esc(fmtKeyShort(ep.end).replace(' · 오늘', ''));
-        // 밀면 삭제가 드러나는 스와이프 행 — 날짜 범위(주 정보) / 기간·주기(부 정보) 위계
-        rows +=
-          '<div class="swipe-wrap row-swipe single">' +
-            '<div class="swipe-actions">' +
-              '<button class="sw-act del" data-ep-del="' + ep.start + '|' + ep.end + '">삭제</button>' +
+        var startLabel = esc(fmtKeyShort(ep.start).replace(' · 오늘', ''));
+        var meta = len + '일간' + (cycleTxt ? ' · ' + cycleTxt : '');
+        html +=
+          '<div class="swipe-wrap ep-wrap">' +
+            '<div class="ep-actions">' +
+              '<button class="ep-act edit" data-ep-edit="' + ep.start + '|' + ep.end + '">수정</button>' +
+              '<button class="ep-act del" data-ep-del="' + ep.start + '|' + ep.end + '">삭제</button>' +
             '</div>' +
-            '<div class="dose-row ep-row swipe-content">' +
+            '<section class="card ep-card swipe-content" role="button" tabindex="0">' +
               '<div class="ep-main">' +
-                '<div class="ep-range">' + range + '</div>' +
-                '<div class="ep-meta"><span class="ep-len">' + len + '일</span>' +
-                  (cycleTxt ? '<span class="ep-dot">·</span><span class="ep-cycle">' + cycleTxt + '</span>' : '') +
-                '</div>' +
+                '<div class="ep-range">' + startLabel + '</div>' +
+                '<div class="ep-meta">' + meta + '</div>' +
               '</div>' +
               '<span class="d-swipe-hint">' + ICON.chevronL + '</span>' +
-            '</div>' +
+            '</section>' +
           '</div>';
       }
-      html += '<div class="card">' + rows + '</div>';
     }
 
     app.innerHTML = html;
@@ -1181,35 +1192,67 @@
     var addBtn = document.getElementById('p-add');
     if (addBtn) {
       addBtn.addEventListener('click', function () {
-        state.periodAdd = true;
+        state.periodAdd = true; state.periodEdit = null;
         renderPeriod();
       });
     }
     var saveBtn = document.getElementById('p-save');
     if (saveBtn) {
+      var startEl = document.getElementById('p-start');
+      var lenEl = document.getElementById('p-len');
+      var prevEl = document.getElementById('p-endpreview');
+      var calcEnd = function () {
+        var st = startEl.value; var n = parseInt(lenEl.value, 10);
+        if (!st || !n || n < 1) return null;
+        var e = addDays(st, n - 1);
+        return e > tk ? tk : e;
+      };
+      var updatePreview = function () {
+        var e = calcEnd();
+        prevEl.textContent = e ? '종료일 ' + fmtKeyShort(e).replace(' · 오늘', '') : '';
+      };
+      updatePreview();
+      startEl.addEventListener('change', updatePreview);
+      lenEl.addEventListener('input', updatePreview);
       document.getElementById('p-cancel').addEventListener('click', function () {
-        state.periodAdd = false;
+        state.periodAdd = false; state.periodEdit = null;
         renderPeriod();
       });
       saveBtn.addEventListener('click', function () {
-        var start = document.getElementById('p-start').value;
-        var end = document.getElementById('p-end').value || start;
+        var start = startEl.value;
+        var n = parseInt(lenEl.value, 10);
         var errEl = document.getElementById('p-error');
         function fail(msg) { errEl.textContent = msg; errEl.style.display = 'block'; }
         if (!start) { fail('시작일을 선택해 주세요.'); return; }
-        if (end < start) { fail('종료일이 시작일보다 빨라요.'); return; }
-        if (start > tk || end > tk) { fail('미래 날짜는 기록할 수 없어요.'); return; }
+        if (start > tk) { fail('미래 날짜는 기록할 수 없어요.'); return; }
+        if (!n || n < 1) { fail('기간(일)을 1 이상으로 입력해 주세요.'); return; }
+        if (n > 14) { fail('기간은 최대 14일까지 입력할 수 있어요.'); return; }
+        var end = addDays(start, n - 1);
+        if (end > tk) end = tk;
+        if (state.periodEdit) removePeriodRange(state.periodEdit.start, state.periodEdit.end);
         addPeriodRange(start, end);
-        state.periodAdd = false;
+        state.periodAdd = false; state.periodEdit = null;
         renderPeriod();
       });
     }
-    app.querySelectorAll('.row-swipe').forEach(function (wrap) { attachSwipe(wrap, 84, null, true); });
+    // 밀면 카드 뒤에서 수정·삭제 버튼이 함께 드러남 (홈 카드식 스와이프)
+    app.querySelectorAll('.ep-wrap').forEach(function (wrap) {
+      attachSwipe(wrap, 152, null, false);
+    });
+    app.querySelectorAll('[data-ep-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var p = btn.getAttribute('data-ep-edit').split('|');
+        state.periodEdit = { start: p[0], end: p[1] };
+        state.periodAdd = false;
+        renderPeriod();
+      });
+    });
     app.querySelectorAll('[data-ep-del]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var p = btn.getAttribute('data-ep-del').split('|');
         if (window.confirm('이 생리 기록을 삭제할까요?')) {
           removePeriodRange(p[0], p[1]);
+          state.periodEdit = null;
           renderPeriod();
         }
       });
