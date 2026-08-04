@@ -84,6 +84,11 @@
     var d = new Date(ts);
     return d.getHours() + '시 ' + d.getMinutes() + '분 ' + d.getSeconds() + '초';
   }
+  function fmtTimeKoMin(ts) {
+    // 한글 시:분 (초 생략) — 달력 하루 패널 등 간결 표기용
+    var d = new Date(ts);
+    return d.getHours() + '시 ' + d.getMinutes() + '분';
+  }
   function fmtCountdown(ms) {
     // 남은 시간 H:MM:SS (매초 감소하는 카운트다운)
     var tot = Math.max(0, Math.floor(ms / 1000));
@@ -1034,7 +1039,7 @@
               '</div>' +
               '<div class="dose-row swipe-content">' +
                 '<span class="d-name">' + esc(med ? med.name : '삭제된 약') + '</span>' +
-                '<span class="dp-right"><span class="d-time">' + esc(fmtTime(d.ts)) + '</span>' +
+                '<span class="dp-right"><span class="d-time">' + esc(fmtTimeKoMin(d.ts)) + '</span>' +
                   '<span class="d-swipe-hint">' + ICON.chevronL + '</span></span>' +
               '</div>' +
             '</div>';
@@ -1204,8 +1209,7 @@
       var calcEnd = function () {
         var st = startEl.value; var n = parseInt(lenEl.value, 10);
         if (!st || !n || n < 1) return null;
-        var e = addDays(st, n - 1);
-        return e > tk ? tk : e;
+        return addDays(st, n - 1); // 진행 중인 주기는 종료일이 미래여도 기간 그대로 인정
       };
       var updatePreview = function () {
         var e = calcEnd();
@@ -1227,8 +1231,8 @@
         if (start > tk) { fail('미래 날짜는 기록할 수 없어요.'); return; }
         if (!n || n < 1) { fail('기간(일)을 1 이상으로 입력해 주세요.'); return; }
         if (n > 14) { fail('기간은 최대 14일까지 입력할 수 있어요.'); return; }
+        // 시작일은 오늘 이전이어야 하지만, 진행 중인 주기는 종료일이 미래여도 기간을 그대로 인정
         var end = addDays(start, n - 1);
-        if (end > tk) end = tk;
         if (state.periodEdit) removePeriodRange(state.periodEdit.start, state.periodEdit.end);
         addPeriodRange(start, end);
         state.periodAdd = false; state.periodEdit = null;
