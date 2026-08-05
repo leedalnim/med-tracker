@@ -37,7 +37,7 @@
   var MED_CATALOG = [
     { name: '타이레놀정 500mg', unit: '정', type: 'interval', intervalHours: 4, maxPerDay: 8 },
     { name: '타이레놀 8시간 이알 서방정 650mg', unit: '정', type: 'interval', intervalHours: 8, maxPerDay: 6 },
-    { name: '이지엔6프로 (덱시부프로펜 300mg)', unit: '캡슐', type: 'interval', intervalHours: 4, maxPerDay: 4 },
+    { name: '이지엔6프로 (덱시부프로펜 300mg)', unit: '캡슐', type: 'interval', intervalHours: 6, maxPerDay: 4 },
     { name: '부루펜정 400mg (이부프로펜)', unit: '정', type: 'interval', intervalHours: 4, maxPerDay: 3 },
     { name: '탁센 (나프록센 250mg)', unit: '캡슐', type: 'interval', intervalHours: 6, maxPerDay: 5 },
     { name: '부스코판당의정 10mg', unit: '정', type: 'interval', intervalHours: 4, maxPerDay: 10 },
@@ -155,7 +155,7 @@
   // 기존 저장 데이터 보정
   function migrate() {
     var ver = storage.get(KEY.migr, 0);
-    if (ver >= 5) return;
+    if (ver >= 6) return;
     // v1~2: type 기본값, 이지엔6프로 최대치(허가 용량 1일 4캡슐) 수정
     if (ver < 2 && storage.has(KEY.meds)) {
       var meds = storage.get(KEY.meds, []).map(function (m) {
@@ -191,7 +191,16 @@
         return doses5.some(function (d) { return d.medId === m.id; });
       }));
     }
-    storage.set(KEY.migr, 5);
+    // v6: 이지엔6프로(덱시부프로펜) 최소 복용 간격 4→6시간 정정 (기존 4시간은 오류)
+    if (ver < 6 && storage.has(KEY.meds)) {
+      storage.set(KEY.meds, storage.get(KEY.meds, []).map(function (m) {
+        if (m.name && m.name.indexOf('이지엔6프로') >= 0 && m.type === 'interval' && m.intervalHours === 4) {
+          m.intervalHours = 6;
+        }
+        return m;
+      }));
+    }
+    storage.set(KEY.migr, 6);
   }
 
   function getDoses() { return storage.get(KEY.doses, []); }
