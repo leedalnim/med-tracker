@@ -28,7 +28,6 @@
     period: 'mt.period',      // ['YYYY-MM-DD', ...] 생리로 표시한 날
     periodOn: 'mt.periodOn',  // 생리주기 기능 사용 여부 (기본 꺼짐, 설정에서 켬)
     theme: 'mt.theme',        // 'system' | 'light' | 'dark'
-    glass: 'mt.glass',        // 하단 바 리퀴드 글라스 효과 (기본 꺼짐)
     migr: 'mt.migr'           // 데이터 마이그레이션 버전
   };
 
@@ -206,10 +205,6 @@
     if (t === 'dark') return true;
     if (t === 'light') return false;
     return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  }
-  function isGlassOn() { return storage.get(KEY.glass, false); } // 기본 꺼짐
-  function applyGlass() {
-    document.documentElement.classList.toggle('lg-on', isGlassOn());
   }
   function applyTheme() {
     var t = getTheme();
@@ -1312,11 +1307,6 @@
         segBtn('system', '시스템') + segBtn('light', '라이트') + segBtn('dark', '다크') +
       '</div>' +
       '<p class="settings-note">시스템은 폰 설정(라이트/다크)을 따라가요.</p>' +
-      '<button class="toggle-row" id="glass-toggle">' +
-        '<div><div class="m-title">리퀴드 글라스</div>' +
-        '<div class="m-desc">하단 바에 굴절 유리 효과 (미지원 기기는 블러만)</div></div>' +
-        '<span class="switch' + (isGlassOn() ? ' on' : '') + '"></span>' +
-      '</button>' +
     '</div>';
 
     // 생리주기: 기본 꺼짐 — 여기서 켜면 달력에 기록 기능이 나타남
@@ -1345,11 +1335,6 @@
     });
     document.getElementById('period-toggle').addEventListener('click', function () {
       storage.set(KEY.periodOn, !isPeriodOn());
-      renderSettings();
-    });
-    document.getElementById('glass-toggle').addEventListener('click', function () {
-      storage.set(KEY.glass, !isGlassOn());
-      applyGlass();
       renderSettings();
     });
     document.getElementById('add-med').addEventListener('click', function () {
@@ -1598,7 +1583,6 @@
   /* ===== 시작 ===== */
   migrate();
   applyTheme();
-  applyGlass();
   render();
 
   // 시스템 테마 변경 추종 (테마가 '시스템'일 때만 상태바 색 갱신)

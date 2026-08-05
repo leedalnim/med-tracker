@@ -16,15 +16,6 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <!-- 리퀴드 글라스(굴절) 필터 — 설정에서 켤 때만 하단 바에 적용. 지원 브라우저에서만 왜곡이 보임 -->
-  <svg class="glass-defs" width="0" height="0" aria-hidden="true" focusable="false">
-    <filter id="liquid-glass" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
-      <feTurbulence type="fractalNoise" baseFrequency="0.008 0.013" numOctaves="2" seed="9" result="noise"/>
-      <feGaussianBlur in="noise" stdDeviation="2" result="softNoise"/>
-      <feDisplacementMap in="SourceGraphic" in2="softNoise" scale="22" xChannelSelector="R" yChannelSelector="G" result="disp"/>
-      <feGaussianBlur in="disp" stdDeviation="1.4"/>
-    </filter>
-  </svg>
   <div id="app" role="main"></div>
   <script src="./app.js"></script>
 </body>

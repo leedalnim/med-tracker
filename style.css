@@ -934,28 +934,7 @@ input, select {
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   .bottom-nav { background: var(--nav-solid); }
 }
-/* 리퀴드 글라스(설정 ON): 뒤 배경을 SVG 필터로 굴절.
-   지원 브라우저(크롬/안드로이드/데스크톱)에서만 왜곡이 보이고,
-   iOS 사파리는 url() backdrop 미지원이라 기존 블러만 유지됨 */
-.bottom-nav::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  z-index: 0;
-  pointer-events: none;
-}
-:root.lg-on .bottom-nav {
-  -webkit-backdrop-filter: blur(14px) saturate(1.8) brightness(1.08);
-  backdrop-filter: blur(14px) saturate(1.8) brightness(1.08);
-}
-:root.lg-on .bottom-nav::before {
-  -webkit-backdrop-filter: url(#liquid-glass) blur(4px);
-  backdrop-filter: url(#liquid-glass) blur(4px);
-}
 .bottom-nav button {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   gap: 6px;
