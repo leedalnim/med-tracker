@@ -234,8 +234,7 @@
       }
     };
     var json = JSON.stringify(payload, null, 2);
-    var d = new Date();
-    var name = '복약백업-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '.json';
+    var name = '복약백업.json'; // 고정 이름 — 같은 위치에 저장하면 항상 최신 하나로 덮어씀
     var blob = new Blob([json], { type: 'application/json' });
     var file = null;
     try { file = new File([blob], name, { type: 'application/json' }); } catch (e) { file = null; }
