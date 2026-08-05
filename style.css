@@ -645,6 +645,9 @@ input, select {
   margin-bottom: 4px;
 }
 .day-panel .dp-title { font-size: 16px; font-weight: 800; }
+.backup-actions { display: flex; gap: 10px; }
+.backup-actions .pill-btn { flex: 1; gap: 7px; }
+.backup-actions .pill-btn .lucide { width: 18px; height: 18px; }
 .period-toggle {
   display: inline-flex;
   align-items: center;

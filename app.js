@@ -219,6 +219,58 @@
     });
   }
 
+  /* ===== 데이터 백업(내보내기/불러오기) — 파일 하나로 저장·복원, 서버 없음 ===== */
+  function exportData() {
+    var payload = {
+      app: 'med-tracker',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      data: {
+        meds: storage.get(KEY.meds, []),
+        doses: storage.get(KEY.doses, []),
+        period: storage.get(KEY.period, []),
+        periodOn: storage.get(KEY.periodOn, false),
+        theme: getTheme()
+      }
+    };
+    var json = JSON.stringify(payload, null, 2);
+    var d = new Date();
+    var name = '복약백업-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '.json';
+    var blob = new Blob([json], { type: 'application/json' });
+    var file = null;
+    try { file = new File([blob], name, { type: 'application/json' }); } catch (e) { file = null; }
+    // 모바일: 공유 시트로 '파일에 저장'/카톡 등 선택
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: '복약 백업' }).catch(function () {});
+      return;
+    }
+    // 폴백(데스크톱 등): 파일 다운로드
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function importData(file, done) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var obj = JSON.parse(reader.result);
+        var data = obj && obj.data ? obj.data : obj;
+        if (!data || !Array.isArray(data.meds)) throw new Error('형식이 올바르지 않아요');
+        storage.set(KEY.meds, data.meds || []);
+        storage.set(KEY.doses, Array.isArray(data.doses) ? data.doses : []);
+        storage.set(KEY.period, Array.isArray(data.period) ? data.period : []);
+        storage.set(KEY.periodOn, !!data.periodOn);
+        if (data.theme) storage.set(KEY.theme, data.theme);
+        done(true, '');
+      } catch (e) { done(false, e.message || '불러오기 실패'); }
+    };
+    reader.onerror = function () { done(false, '파일을 읽지 못했어요'); };
+    reader.readAsText(file);
+  }
+
   function dosesForMed(medId) {
     return getDoses().filter(function (d) { return d.medId === medId; });
   }
@@ -1317,6 +1369,16 @@
         '<span class="switch' + (isPeriodOn() ? ' on' : '') + '"></span>' +
       '</button></div>';
 
+    html += '<div class="settings-group"><h2>데이터 백업</h2>' +
+      '<div class="backup-actions">' +
+        '<button class="pill-btn secondary" id="export-data">' + ICON.download + '내보내기</button>' +
+        '<button class="pill-btn secondary" id="import-data">' + ICON.upload + '불러오기</button>' +
+      '</div>' +
+      '<input type="file" id="import-file" accept="application/json,.json" hidden>' +
+      '<p class="settings-note">기록을 파일 하나로 저장/복원해요. <b>내보내기</b> → \'파일에 저장\'으로 백업, ' +
+      '<b>불러오기</b> → 저장한 파일 선택으로 복원. 기기를 바꿔도 그대로 옮겨져요.</p>' +
+    '</div>';
+
     html +=
       '<p class="settings-note">모든 데이터는 이 기기의 브라우저에만 저장돼요. 서버로 전송되지 않아요.<br>' +
       '이 앱은 사용자가 등록한 간격·최대치·날짜를 기준으로 계산만 해요.</p>';
@@ -1336,6 +1398,22 @@
     document.getElementById('period-toggle').addEventListener('click', function () {
       storage.set(KEY.periodOn, !isPeriodOn());
       renderSettings();
+    });
+    document.getElementById('export-data').addEventListener('click', exportData);
+    var impFile = document.getElementById('import-file');
+    document.getElementById('import-data').addEventListener('click', function () { impFile.click(); });
+    impFile.addEventListener('change', function () {
+      var f = impFile.files && impFile.files[0];
+      if (!f) return;
+      if (!window.confirm('현재 기록을 이 파일 내용으로 덮어써요. 계속할까요?\n(먼저 내보내기로 백업해두면 안전해요)')) {
+        impFile.value = '';
+        return;
+      }
+      importData(f, function (ok, msg) {
+        impFile.value = '';
+        if (ok) { applyTheme(); window.alert('불러오기 완료!'); go('home'); }
+        else { window.alert('불러오기 실패: ' + msg); }
+      });
     });
     document.getElementById('add-med').addEventListener('click', function () {
       go('medForm', { editMedId: null, returnTo: 'settings' });
@@ -1558,7 +1636,11 @@
     // chevron-down (lucide)
     chevron: lucide('<path d="m6 9 6 6 6-6"/>'),
     // chevron-left (lucide)
-    chevronL: lucide('<path d="m15 18-6-6 6-6"/>')
+    chevronL: lucide('<path d="m15 18-6-6 6-6"/>'),
+    // download (lucide) — 내보내기
+    download: lucide('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>'),
+    // upload (lucide) — 불러오기
+    upload: lucide('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>')
   };
 
   function bottomNavHtml(active) {
