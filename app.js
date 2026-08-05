@@ -1480,15 +1480,17 @@
       '</div>' +
       '<div class="card">' +
         nameFieldHtml +
-        '<div class="form-field">' +
-          '<label>기록 방식</label>' +
-          '<div class="type-select">' +
-            '<button type="button" data-type="interval" class="' + (curType === 'interval' ? 'active' : '') + '">' +
-              '<b>간격 트래커</b><span>다음 복용 가능 시각 계산</span></button>' +
-            '<button type="button" data-type="check" class="' + (curType === 'check' ? 'active' : '') + '">' +
-              '<b>복용 체크</b><span>먹었는지만 기록</span></button>' +
-          '</div>' +
-        '</div>' +
+        // 기록 방식은 '추가' 시점의 결정 — 수정 화면에선 감추고 해당 방식 입력칸만 표시
+        (editing ? '' :
+          '<div class="form-field">' +
+            '<label>기록 방식</label>' +
+            '<div class="type-select">' +
+              '<button type="button" data-type="interval" class="' + (curType === 'interval' ? 'active' : '') + '">' +
+                '<b>간격 트래커</b><span>다음 복용 가능 시각 계산</span></button>' +
+              '<button type="button" data-type="check" class="' + (curType === 'check' ? 'active' : '') + '">' +
+                '<b>복용 체크</b><span>먹었는지만 기록</span></button>' +
+            '</div>' +
+          '</div>') +
         '<div class="form-row">' +
           '<div class="form-field" id="field-interval">' +
             '<label for="f-interval">최소 간격 (시간)</label>' +
