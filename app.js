@@ -541,7 +541,7 @@
     } else {
       centerCls = ''; innerTime = esc(fmtCountdown(s.remainMs)); innerLabel = '남음';
       innerId = ' id="rc-' + esc(med.id) + '"';
-      statusLine = '<span class="hl">' + esc(fmtTime(s.last.ts + s.intervalMs)) + '</span> 이후 복용 가능';
+      statusLine = '<span class="hl">' + esc(fmtTimeKoMin(s.last.ts + s.intervalMs)) + '</span> 이후 복용 가능';
     }
     var ringCenter =
       '<div class="ring-center' + centerCls + '">' +
@@ -572,7 +572,7 @@
       cls = ''; topLabel = '다음 복용까지';
       bigVal = fmtCountdown(s.remainMs);  // 카운트다운 (매초 감소)
       bigId = ' id="hero-count"';
-      subLabel = fmtTime(s.last.ts + s.intervalMs) + ' 예정';
+      subLabel = fmtTimeKoMin(s.last.ts + s.intervalMs) + ' 예정';
     }
     return (
       '<div class="hero-ring">' +
