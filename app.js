@@ -2,6 +2,14 @@
 (function () {
   'use strict';
 
+  /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
+    document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+  });
+  document.addEventListener('touchmove', function (e) {
+    if (e.touches && e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+
   /* ===== 저장소 (localStorage 불가 환경은 메모리로 폴백) ===== */
   var memStore = {};
   var storage = {
