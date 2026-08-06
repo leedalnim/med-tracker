@@ -1362,7 +1362,7 @@
           '</div>' +
         '</div>';
     });
-    html += '<button class="pill-btn secondary" id="add-med">+ 약 추가</button></div>';
+    html += '<button class="pill-btn secondary" id="add-med">+ 자주 찾는 약 추가</button></div>';
 
     // 화면 테마: 시스템 / 라이트 / 다크
     var curTheme = getTheme();
@@ -1455,6 +1455,8 @@
     app.className = 'no-nav';
     var editing = state.editMedId ? medById(state.editMedId) : null;
     var curType = editing ? (editing.type || 'interval') : 'interval';
+    // 설정에서 여는 '자주 찾는 약 추가' = 간단 폼(기록 방식 선택 없음, 간격 유무로 자동 판단)
+    var simpleAdd = !editing && state.returnTo === 'settings';
 
     // 약 이름: 직접 만든 콤보(검색 + 목록 선택). datalist가 iOS에서 안 뜨는 문제 대응
     var nameFieldHtml =
@@ -1484,12 +1486,12 @@
     app.innerHTML =
       '<div class="back-head">' +
         '<button id="back" aria-label="뒤로">←</button>' +
-        '<h1>' + (editing ? '약 수정' : '약 추가') + '</h1>' +
+        '<h1>' + (editing ? '약 수정' : (simpleAdd ? '자주 찾는 약 추가' : '약 추가')) + '</h1>' +
       '</div>' +
       '<div class="card">' +
         nameFieldHtml +
-        // 기록 방식은 '추가' 시점의 결정 — 수정 화면에선 감추고 해당 방식 입력칸만 표시
-        (editing ? '' :
+        // 기록 방식은 '홈 약 추가'에서만 선택. 수정·자주찾는약추가에선 감춤(간격 유무로 자동 판단)
+        (editing || simpleAdd ? '' :
           '<div class="form-field">' +
             '<label>기록 방식</label>' +
             '<div class="type-select">' +
@@ -1501,7 +1503,7 @@
           '</div>') +
         '<div class="form-row">' +
           '<div class="form-field" id="field-interval">' +
-            '<label for="f-interval">최소 간격 (시간)</label>' +
+            '<label for="f-interval">최소 간격 (시간' + (simpleAdd ? ', 선택' : '') + ')</label>' +
             '<input id="f-interval" type="number" inputmode="decimal" min="0.5" step="0.5" placeholder="4" value="' + (editing && editing.intervalHours != null ? editing.intervalHours : '') + '">' +
           '</div>' +
           '<div class="form-field">' +
@@ -1513,6 +1515,7 @@
             '<select id="f-unit">' + unitOptions + '</select>' +
           '</div>' +
         '</div>' +
+        (simpleAdd ? '<p class="form-hint">최소 간격을 비우면 \'복용 체크\'(먹었는지만 기록)로 등록돼요.</p>' : '') +
         '<p class="form-error" id="form-error"></p>' +
         '<div class="form-actions">' +
           '<button type="button" class="pill-btn secondary" id="cancel">취소</button>' +
@@ -1601,8 +1604,11 @@
       }
       errEl.style.display = 'none';
 
+      // 간단 폼(자주 찾는 약 추가)에선 간격 유무로 방식 자동 판단
+      var effType = simpleAdd ? (interval > 0 ? 'interval' : 'check') : curType;
+
       if (!name) { fail('약 이름을 검색하거나 직접 입력해 주세요.', 'f-name'); return; }
-      if (curType === 'interval') {
+      if (effType === 'interval') {
         if (!(interval > 0)) { fail('최소 간격(시간)을 입력해 주세요.', 'f-interval'); return; }
         if (!(max > 0)) { fail('1일 최대 개수를 입력해 주세요.', 'f-max'); return; }
       } else {
@@ -1612,7 +1618,7 @@
 
       var newMed = {
         id: editing ? editing.id : uid(),
-        name: name, unit: unit, type: curType,
+        name: name, unit: unit, type: effType,
         intervalHours: interval, maxPerDay: max
       };
       var meds = getMeds();
