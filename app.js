@@ -808,16 +808,12 @@
       var todayLastD = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
-      var dCount = med.maxPerDay ? todays.length + '/' + med.maxPerDay : todays.length + '회';
-      var checkStatus = todayLastD
-        ? '<p class="detail-status">오늘 ' + esc(fmtTimeKoMin(todayLastD.ts)) + ' 복용 <span class="chk-count">(' + dCount + ')</span></p>'
-        : '<p class="detail-status">오늘 아직 안 드셨어요</p>';
       var checkBtn = todayLastD
         ? '<button class="pill-btn check-log-full done" disabled>' + ICON.check + '오늘 드셨어요!</button>'
         : '<button class="pill-btn check-log-full" id="detail-log">' + ICON.pillPlus + '먹었어요</button>';
       topCard =
         '<div class="card">' +
-          summary + checkStatus + checkBtn +
+          summary + checkBtn +
         '</div>';
     } else {
       topCard =
