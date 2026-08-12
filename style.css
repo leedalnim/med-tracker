@@ -231,6 +231,9 @@ input, select {
   gap: 8px;
 }
 .mc-title .med-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 체크 약: 복용 시각(왼쪽) + 먹었어요 버튼(오른쪽) 한 줄 */
+.mc-checkrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.mc-checkrow .status-line { margin: 0; }
 /* 스와이프 삭제 */
 .swipe-wrap {
   position: relative;

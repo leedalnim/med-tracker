@@ -671,6 +671,18 @@
       warn = '<div class="warn-banner">오늘 최대치 ' + med.maxPerDay + med.unit + ' 초과 — 현재 ' + todays.length + med.unit + '</div>';
     }
 
+    // 체크 약: '복용 시각'과 '먹었어요' 버튼을 같은 줄(시각 왼쪽·버튼 오른쪽). 간격 약은 기존 스택
+    var mcMain = isCheck
+      ? '<div class="mc-main">' + titleRow +
+          '<div class="mc-checkrow">' +
+            '<p class="status-line">' + (statusLine || '') + '</p>' + logBtn +
+          '</div>' +
+        '</div>'
+      : '<div class="mc-main">' + titleRow +
+          (statusLine ? '<p class="status-line">' + statusLine + '</p>' : '') +
+          actionsRow +
+        '</div>';
+
     // 스와이프 삭제: 카드를 왼쪽으로 밀면 뒤에서 삭제 버튼이 드러남
     return (
       '<div class="swipe-wrap">' +
@@ -678,11 +690,7 @@
         '<section class="card med-card swipe-content" data-med="' + esc(med.id) + '" role="button" tabindex="0">' +
           '<div class="mc-row">' +
             ringHtml +
-            '<div class="mc-main">' +
-              titleRow +
-              (statusLine ? '<p class="status-line">' + statusLine + '</p>' : '') +
-              actionsRow +
-            '</div>' +
+            mcMain +
           '</div>' +
           warn +
         '</section>' +
