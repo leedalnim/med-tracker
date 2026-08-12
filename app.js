@@ -813,9 +813,7 @@
       topCard =
         '<div class="card">' +
           summary + checkStatus +
-          '<div class="status-actions">' +
-            '<button class="pill-btn compact" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
-          '</div>' +
+          '<button class="pill-btn check-log-full" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
         '</div>';
     } else {
       topCard =
@@ -864,7 +862,7 @@
                 '<button class="sw-act del" data-md-del="' + esc(d.id) + '">삭제</button>' +
               '</div>' +
               '<div class="dose-row swipe-content">' +
-                '<span class="d-time">' + esc(fmtTimeKo(d.ts)) + '</span>' +
+                '<span class="d-time">' + esc(isCheck ? fmtTimeKoMin(d.ts) : fmtTimeKo(d.ts)) + '</span>' +
                 '<span class="d-swipe-hint">' + ICON.chevronL + '</span>' +
               '</div>' +
             '</div>';

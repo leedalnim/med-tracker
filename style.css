@@ -501,6 +501,7 @@ input, select {
 .ds-item .ds-num { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
 .ds-item .ds-label { font-size: 11px; color: var(--text-dim); font-weight: 700; margin-top: 2px; }
 .detail-status { font-size: 14px; font-weight: 600; color: var(--text-dim); margin-bottom: 12px; }
+.check-log-full { width: 100%; }
 .detail-status b { color: var(--text); }
 .detail-status .hl { color: var(--accent); }
 
