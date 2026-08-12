@@ -632,15 +632,24 @@
 
     var reached = med.maxPerDay ? todays.length >= med.maxPerDay : false;
     var exceeded = med.maxPerDay ? todays.length > med.maxPerDay : false;
-    var badge = med.maxPerDay
-      ? '오늘 ' + todays.length + '/' + med.maxPerDay
-      : '오늘 ' + todays.length + '회';
+    var countTxt = med.maxPerDay ? todays.length + '/' + med.maxPerDay : todays.length + '회';
 
     var logBtn = '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>';
+
+    // 우상단 배지: 체크 약이면 '오늘 드셨어요!' + 개수 태그, 간격 약이면 오늘 N/최대
+    var badgeHtml;
+    if (isCheck) {
+      var takenB = todays.length > 0;
+      badgeHtml = takenB
+        ? '<span class="chk-msg">오늘 드셨어요!</span><span class="count-tag on">' + countTxt + '</span>'
+        : '<span class="count-tag">오늘 ' + countTxt + '</span>';
+    } else {
+      badgeHtml = '<span class="badge' + (reached ? ' filled' : '') + '">오늘 ' + countTxt + '</span>';
+    }
     var titleRow =
       '<div class="mc-title">' +
         '<span class="med-name">' + esc(med.name) + '</span>' +
-        '<span class="badge' + (reached ? ' filled' : '') + '">' + badge + '</span>' +
+        '<span class="mc-badge-wrap">' + badgeHtml + '</span>' +
       '</div>';
     var actionsRow = '<div class="mc-actions">' + logBtn + '</div>';
 
@@ -650,9 +659,8 @@
       var todayLast = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
-      var cCount = med.maxPerDay ? todays.length + '/' + med.maxPerDay : todays.length + '회';
       statusLine = todayLast
-        ? '<span class="ok">✓</span> 오늘 드셨어요 · ' + esc(fmtTimeKoMin(todayLast.ts)) + ' <span class="chk-count">(' + cCount + ')</span>'
+        ? '오늘 ' + esc(fmtTimeKoMin(todayLast.ts)) + ' 복용'
         : '오늘 아직 안 드셨어요';
     } else {
       var rv = buildIntervalRing(med, 'sm');

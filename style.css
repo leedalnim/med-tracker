@@ -191,6 +191,16 @@ input, select {
   white-space: nowrap;
 }
 .badge.filled { background: var(--accent); color: var(--accent-text); }
+/* 체크 약 배지: '오늘 드셨어요!' + 개수 태그 */
+.mc-badge-wrap { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.chk-msg { font-size: 12.5px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+.count-tag {
+  display: inline-flex; align-items: center;
+  background: var(--line); color: var(--text-dim);
+  border-radius: 999px; font-size: 12px; font-weight: 800;
+  padding: 3px 9px; white-space: nowrap;
+}
+.count-tag.on { background: var(--accent); color: var(--accent-text); }
 
 .empty {
   text-align: center;
