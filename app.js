@@ -650,9 +650,10 @@
       var todayLast = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
+      var cCount = med.maxPerDay ? todays.length + '/' + med.maxPerDay : todays.length + '회';
       statusLine = todayLast
-        ? '<span class="ok">✓</span> 오늘 드셨어요 · ' + esc(fmtTime(todayLast.ts))
-        : '오늘 아직 기록이 없어요';
+        ? '<span class="ok">✓</span> 오늘 드셨어요 · ' + esc(fmtTimeKoMin(todayLast.ts)) + ' <span class="chk-count">(' + cCount + ')</span>'
+        : '오늘 아직 안 드셨어요';
     } else {
       var rv = buildIntervalRing(med, 'sm');
       ringHtml = rv.ringHtml;
@@ -791,9 +792,10 @@
       var todayLastD = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
+      var dCount = med.maxPerDay ? todays.length + '/' + med.maxPerDay : todays.length + '회';
       var checkStatus = todayLastD
-        ? '<p class="detail-status"><b class="hl">오늘 드셨어요</b> · ' + esc(fmtTime(todayLastD.ts)) + '</p>'
-        : '<p class="detail-status">오늘 아직 기록이 없어요</p>';
+        ? '<p class="detail-status"><b class="hl">오늘 드셨어요</b> · ' + esc(fmtTimeKoMin(todayLastD.ts)) + ' <span class="chk-count">(' + dCount + ')</span></p>'
+        : '<p class="detail-status">오늘 아직 안 드셨어요</p>';
       topCard =
         '<div class="card">' +
           summary + checkStatus +

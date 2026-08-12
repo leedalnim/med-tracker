@@ -314,6 +314,7 @@ input, select {
 }
 .status-line .hl { color: var(--accent); font-weight: 800; }
 .status-line .ok { color: var(--accent); font-weight: 800; }
+.chk-count { color: var(--text-dim); font-weight: 800; }
 .mc-actions {
   display: flex;
   align-items: center;
