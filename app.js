@@ -1457,6 +1457,8 @@
     var curType = editing ? (editing.type || 'interval') : 'interval';
     // 설정에서 여는 '자주 찾는 약 추가' = 간단 폼(기록 방식 선택 없음, 간격 유무로 자동 판단)
     var simpleAdd = !editing && state.returnTo === 'settings';
+    // 수정·간단추가에선 기록 방식 토글 없이 '간격 유무'로 타입 자동 판단(간격 있으면 트래킹, 비우면 매일 체크)
+    var inferMode = editing || simpleAdd;
 
     // 약 이름: 직접 만든 콤보(검색 + 목록 선택). datalist가 iOS에서 안 뜨는 문제 대응
     var nameFieldHtml =
@@ -1503,7 +1505,7 @@
           '</div>') +
         '<div class="form-row">' +
           '<div class="form-field" id="field-interval">' +
-            '<label for="f-interval">최소 간격 (시간' + (simpleAdd ? ', 선택' : '') + ')</label>' +
+            '<label for="f-interval">최소 간격 (시간' + (inferMode ? ', 선택' : '') + ')</label>' +
             '<input id="f-interval" type="number" inputmode="decimal" min="0.5" step="0.5" placeholder="4" value="' + (editing && editing.intervalHours != null ? editing.intervalHours : '') + '">' +
           '</div>' +
           '<div class="form-field">' +
@@ -1515,7 +1517,7 @@
             '<select id="f-unit">' + unitOptions + '</select>' +
           '</div>' +
         '</div>' +
-        (simpleAdd ? '<p class="form-hint">최소 간격을 비우면 \'복용 체크\'(먹었는지만 기록)로 등록돼요.</p>' : '') +
+        (inferMode ? '<p class="form-hint">최소 간격을 넣으면 \'간격 트래커\', 비우면 \'복용 체크\'(매일 먹었는지만 기록)가 돼요.</p>' : '') +
         '<p class="form-error" id="form-error"></p>' +
         '<div class="form-actions">' +
           '<button type="button" class="pill-btn secondary" id="cancel">취소</button>' +
@@ -1530,7 +1532,8 @@
       applyTypeUI();
     }
     function applyTypeUI() {
-      document.getElementById('field-interval').style.display = curType === 'interval' ? '' : 'none';
+      // 수정·간단추가에선 간격칸을 항상 보이게(비우면 매일 체크로 전환 가능)
+      document.getElementById('field-interval').style.display = (inferMode || curType === 'interval') ? '' : 'none';
       document.getElementById('label-max').textContent = curType === 'interval' ? '1일 최대 (개수)' : '1일 최대 (선택)';
     }
     typeButtons.forEach(function (btn) {
@@ -1604,8 +1607,8 @@
       }
       errEl.style.display = 'none';
 
-      // 간단 폼(자주 찾는 약 추가)에선 간격 유무로 방식 자동 판단
-      var effType = simpleAdd ? (interval > 0 ? 'interval' : 'check') : curType;
+      // 수정·간단추가에선 간격 유무로 방식 자동 판단(간격 있으면 트래킹, 비우면 매일 체크)
+      var effType = inferMode ? (interval > 0 ? 'interval' : 'check') : curType;
 
       if (!name) { fail('약 이름을 검색하거나 직접 입력해 주세요.', 'f-name'); return; }
       if (effType === 'interval') {
