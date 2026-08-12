@@ -162,6 +162,17 @@ input, select {
 }
 .pill-btn:disabled { opacity: 0.4; cursor: default; }
 
+/* 체크 약: 오늘 복용 완료 상태 버튼 (비활성·별개 스타일) */
+.pill-btn.done {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1.5px solid transparent;
+  font-weight: 800;
+}
+.pill-btn.done:disabled { opacity: 1; cursor: default; }
+.pill-btn.done:active { transform: none; }
+.pill-btn.done .btn-ico { width: 17px; height: 17px; }
+
 .text-btn {
   color: var(--text-dim);
   font-size: 13px;

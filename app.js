@@ -634,15 +634,17 @@
     var exceeded = med.maxPerDay ? todays.length > med.maxPerDay : false;
     var countTxt = med.maxPerDay ? todays.length + '/' + med.maxPerDay : todays.length + '회';
 
-    var logBtn = '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>';
+    var takenB = todays.length > 0;
 
-    // 우상단 배지: 체크 약이면 '오늘 드셨어요!' + 개수 태그, 간격 약이면 오늘 N/최대
+    // 먹었어요 버튼: 체크 약은 오늘 먹으면 '오늘 드셨어요!'로 바뀌고 비활성화(트래커와 별개 스타일)
+    var logBtn = (isCheck && takenB)
+      ? '<button class="pill-btn compact done" disabled>' + ICON.check + '오늘 드셨어요!</button>'
+      : '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>';
+
+    // 우상단 배지: 체크 약이면 개수 태그만, 간격 약이면 오늘 N/최대
     var badgeHtml;
     if (isCheck) {
-      var takenB = todays.length > 0;
-      badgeHtml = takenB
-        ? '<span class="chk-msg">오늘 드셨어요!</span><span class="count-tag on">' + countTxt + '</span>'
-        : '<span class="chk-msg off">오늘 아직 안 드셨어요</span><span class="count-tag">' + countTxt + '</span>';
+      badgeHtml = '<span class="count-tag' + (takenB ? ' on' : '') + '">' + countTxt + '</span>';
     } else {
       badgeHtml = '<span class="badge' + (reached ? ' filled' : '') + '">오늘 ' + countTxt + '</span>';
     }
@@ -659,7 +661,7 @@
       var todayLast = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
-      statusLine = todayLast ? '오늘 ' + esc(fmtTimeKoMin(todayLast.ts)) + ' 복용' : '';
+      statusLine = todayLast ? '오늘 ' + esc(fmtTimeKoMin(todayLast.ts)) + ' 복용' : '오늘 아직 안 드셨어요';
     } else {
       var rv = buildIntervalRing(med, 'sm');
       ringHtml = rv.ringHtml;
@@ -808,12 +810,14 @@
         : null;
       var dCount = med.maxPerDay ? todays.length + '/' + med.maxPerDay : todays.length + '회';
       var checkStatus = todayLastD
-        ? '<p class="detail-status"><b class="hl">오늘 드셨어요</b> · ' + esc(fmtTimeKoMin(todayLastD.ts)) + ' <span class="chk-count">(' + dCount + ')</span></p>'
+        ? '<p class="detail-status">오늘 ' + esc(fmtTimeKoMin(todayLastD.ts)) + ' 복용 <span class="chk-count">(' + dCount + ')</span></p>'
         : '<p class="detail-status">오늘 아직 안 드셨어요</p>';
+      var checkBtn = todayLastD
+        ? '<button class="pill-btn check-log-full done" disabled>' + ICON.check + '오늘 드셨어요!</button>'
+        : '<button class="pill-btn check-log-full" id="detail-log">' + ICON.pillPlus + '먹었어요</button>';
       topCard =
         '<div class="card">' +
-          summary + checkStatus +
-          '<button class="pill-btn check-log-full" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
+          summary + checkStatus + checkBtn +
         '</div>';
     } else {
       topCard =
@@ -906,10 +910,13 @@
       '</div>';
 
     document.getElementById('back').addEventListener('click', function () { go('home'); });
-    document.getElementById('detail-log').addEventListener('click', function () {
-      logDose(med.id);
-      renderMedDetail();
-    });
+    var detailLogBtn = document.getElementById('detail-log');
+    if (detailLogBtn) {
+      detailLogBtn.addEventListener('click', function () {
+        logDose(med.id);
+        renderMedDetail();
+      });
+    }
     document.getElementById('edit-med-info').addEventListener('click', function () {
       go('medForm', { editMedId: med.id, returnTo: 'medDetail' });
     });
@@ -1785,6 +1792,8 @@
   var ICON = {
     // pill (lucide) — 아래쪽 절반만 아이콘 색의 저투명도로 채워 은은한 fill 느낌
     pillPlus: lucide('<path d="M15.5 15.5 10.5 20.5a4.95 4.95 0 0 1-7-7l5-5Z" fill="currentColor" fill-opacity="0.22" stroke="none"/><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>', 'btn-ico'),
+    // check (lucide)
+    check: lucide('<path d="M20 6 9 17l-5-5"/>', 'btn-ico'),
     // pencil (lucide)
     edit: lucide('<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>'),
     // trash-2 (lucide)
