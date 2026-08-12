@@ -194,6 +194,7 @@ input, select {
 /* 체크 약 배지: '오늘 드셨어요!' + 개수 태그 */
 .mc-badge-wrap { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 .chk-msg { font-size: 12.5px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+.chk-msg.off { color: var(--text-dim); }
 .count-tag {
   display: inline-flex; align-items: center;
   background: var(--line); color: var(--text-dim);
@@ -229,6 +230,7 @@ input, select {
   justify-content: space-between;
   gap: 8px;
 }
+.mc-title .med-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 스와이프 삭제 */
 .swipe-wrap {
   position: relative;

@@ -642,7 +642,7 @@
       var takenB = todays.length > 0;
       badgeHtml = takenB
         ? '<span class="chk-msg">오늘 드셨어요!</span><span class="count-tag on">' + countTxt + '</span>'
-        : '<span class="count-tag">오늘 ' + countTxt + '</span>';
+        : '<span class="chk-msg off">오늘 아직 안 드셨어요</span><span class="count-tag">' + countTxt + '</span>';
     } else {
       badgeHtml = '<span class="badge' + (reached ? ' filled' : '') + '">오늘 ' + countTxt + '</span>';
     }
@@ -659,9 +659,7 @@
       var todayLast = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
-      statusLine = todayLast
-        ? '오늘 ' + esc(fmtTimeKoMin(todayLast.ts)) + ' 복용'
-        : '오늘 아직 안 드셨어요';
+      statusLine = todayLast ? '오늘 ' + esc(fmtTimeKoMin(todayLast.ts)) + ' 복용' : '';
     } else {
       var rv = buildIntervalRing(med, 'sm');
       ringHtml = rv.ringHtml;
