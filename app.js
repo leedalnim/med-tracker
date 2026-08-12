@@ -34,6 +34,7 @@
     meds: 'mt.meds',          // [{id, name, unit, type, intervalHours, maxPerDay}]
     doses: 'mt.doses',        // [{id, medId, ts}]
     period: 'mt.period',      // ['YYYY-MM-DD', ...] 생리로 표시한 날
+    spotting: 'mt.spotting',  // ['YYYY-MM-DD', ...] 부정출혈로 표시한 날 (예측 계산엔 미포함)
     periodOn: 'mt.periodOn',  // 생리주기 기능 사용 여부 (기본 꺼짐, 설정에서 켬)
     theme: 'mt.theme',        // 'system' | 'light' | 'dark'
     migr: 'mt.migr'           // 데이터 마이그레이션 버전
@@ -246,6 +247,7 @@
         meds: storage.get(KEY.meds, []),
         doses: storage.get(KEY.doses, []),
         period: storage.get(KEY.period, []),
+        spotting: storage.get(KEY.spotting, []),
         periodOn: storage.get(KEY.periodOn, false),
         theme: getTheme()
       }
@@ -278,6 +280,7 @@
         storage.set(KEY.meds, data.meds || []);
         storage.set(KEY.doses, Array.isArray(data.doses) ? data.doses : []);
         storage.set(KEY.period, Array.isArray(data.period) ? data.period : []);
+        storage.set(KEY.spotting, Array.isArray(data.spotting) ? data.spotting : []);
         storage.set(KEY.periodOn, !!data.periodOn);
         if (data.theme) storage.set(KEY.theme, data.theme);
         done(true, '');
@@ -352,16 +355,36 @@
     }));
   }
   // 연속된 날들을 에피소드(한 번의 생리)로 묶기
-  function periodEpisodes() {
-    var days = getPeriodDays().slice().sort();
+  function episodesFrom(days) {
+    var sorted = days.slice().sort();
     var eps = [];
-    days.forEach(function (k) {
+    sorted.forEach(function (k) {
       var cur = eps[eps.length - 1];
       if (cur && diffDays(cur.end, k) === 1) cur.end = k;
       else eps.push({ start: k, end: k });
     });
     return eps;
   }
+  function periodEpisodes() { return episodesFrom(getPeriodDays()); }
+
+  // 부정출혈(별도 저장 — 예측 계산엔 절대 포함 안 함)
+  function getSpottingDays() { return storage.get(KEY.spotting, []); }
+  function addSpottingRange(startKey, endKey) {
+    var days = getSpottingDays();
+    var k = startKey;
+    while (k <= endKey) { if (days.indexOf(k) < 0) days.push(k); k = addDays(k, 1); }
+    storage.set(KEY.spotting, days);
+  }
+  function removeSpottingRange(startKey, endKey) {
+    storage.set(KEY.spotting, getSpottingDays().filter(function (k) { return k < startKey || k > endKey; }));
+  }
+  function toggleSpottingDay(key) {
+    var days = getSpottingDays();
+    if (days.indexOf(key) >= 0) days = days.filter(function (k) { return k !== key; });
+    else days.push(key);
+    storage.set(KEY.spotting, days);
+  }
+  function spottingEpisodes() { return episodesFrom(getSpottingDays()); }
   // 사용자가 기록한 날짜들로만 산술 계산 (최근 6주기 평균)
   function cycleStats() {
     var eps = periodEpisodes();
@@ -957,8 +980,10 @@
     var periodOn = isPeriodOn();
     var stats = periodOn ? cycleStats() : null;
     var periodSet = {};
+    var spottingSet = {};
     if (periodOn) {
       getPeriodDays().forEach(function (k) { periodSet[k] = true; });
+      getSpottingDays().forEach(function (k) { spottingSet[k] = true; });
     }
     var predSet = {};
     if (stats && stats.predDays) {
@@ -1020,6 +1045,7 @@
       var cls = 'cal-day';
       if (k === tk) cls += ' today';
       if (periodSet[k]) cls += ' period';
+      else if (spottingSet[k]) cls += ' spotting';
       else if (predSet[k]) cls += ' pred';
       else if (k === ovulKey) cls += ' ovul';
       else if (fertileSet[k]) cls += ' fertile';
@@ -1028,17 +1054,21 @@
         (doseCount[k] ? '<span class="dd"></span>' : '') + '</button>';
     }
     html += '</div>';
-    if (periodOn && stats && stats.avgCycle) {
-      html += '<div class="cal-legend">' +
-        '<span><i class="lg period"></i>생리</span>' +
-        '<span><i class="lg pred"></i>예정</span>' +
-        '<span><i class="lg fertile"></i>가임기</span>' +
-        '<span><i class="lg ovul"></i>배란</span>' +
-      '</div>';
+    var hasSpotting = Object.keys(spottingSet).length > 0;
+    var hasPeriod = Object.keys(periodSet).length > 0;
+    if (periodOn && (hasPeriod || hasSpotting || (stats && stats.avgCycle))) {
+      var legend = '<div class="cal-legend"><span><i class="lg period"></i>생리</span>';
+      if (hasSpotting) legend += '<span><i class="lg spotting"></i>부정출혈</span>';
+      if (stats && stats.avgCycle) {
+        legend += '<span><i class="lg pred"></i>예정</span>' +
+          '<span><i class="lg fertile"></i>가임기</span>' +
+          '<span><i class="lg ovul"></i>배란</span>';
+      }
+      html += legend + '</div>';
     }
     html += '</div>';
 
-    html += dayPanelHtml(state.selKey, periodOn, periodSet);
+    html += dayPanelHtml(state.selKey, periodOn, periodSet, spottingSet);
     html += bottomNavHtml('calendar');
     app.innerHTML = html;
 
@@ -1067,7 +1097,8 @@
     bindBottomNav();
   }
 
-  function dayPanelHtml(key, periodOn, periodSet) {
+  function dayPanelHtml(key, periodOn, periodSet, spottingSet) {
+    spottingSet = spottingSet || {};
     var meds = getMeds();
     var medMap = {};
     meds.forEach(function (mm) { medMap[mm.id] = mm; });
@@ -1079,8 +1110,12 @@
       '<div class="dp-head">' +
         '<div class="dp-title">' + esc(fmtKeyShort(key)) + '</div>' +
         (periodOn
-          ? '<button class="period-toggle' + (periodSet[key] ? ' on' : '') + '" data-period-toggle>' +
-              (periodSet[key] ? '생리 기록됨 · 지우기' : '+ 생리 기록') + '</button>'
+          ? '<div class="dp-toggles">' +
+              '<button class="period-toggle' + (periodSet[key] ? ' on' : '') + '" data-period-toggle>' +
+                (periodSet[key] ? '생리 지우기' : '+ 생리') + '</button>' +
+              '<button class="period-toggle spot' + (spottingSet[key] ? ' on' : '') + '" data-spotting-toggle>' +
+                (spottingSet[key] ? '부정출혈 지우기' : '+ 부정출혈') + '</button>' +
+            '</div>'
           : '') +
       '</div>';
 
@@ -1123,6 +1158,13 @@
     if (toggle) {
       toggle.addEventListener('click', function () {
         togglePeriodDay(state.selKey);
+        renderCalendar();
+      });
+    }
+    var spotToggle = app.querySelector('[data-spotting-toggle]');
+    if (spotToggle) {
+      spotToggle.addEventListener('click', function () {
+        toggleSpottingDay(state.selKey);
         renderCalendar();
       });
     }
@@ -1206,6 +1248,7 @@
 
     // 기록 추가/수정 — 시작일 + 기간(일)만 입력, 종료일은 자동 계산
     var editing = !!state.periodEdit;
+    var curKind = editing ? (state.periodEdit.kind || 'period') : 'period';
     if (state.periodAdd || editing) {
       var lenSum = 0; eps.forEach(function (e) { lenSum += diffDays(e.start, e.end) + 1; });
       var defaultLen = eps.length ? Math.max(1, Math.round(lenSum / eps.length)) : 5;
@@ -1213,6 +1256,12 @@
       var lenVal = editing ? (diffDays(state.periodEdit.start, state.periodEdit.end) + 1) : defaultLen;
       html +=
         '<div class="card">' +
+          '<div class="form-field"><label>기록 종류</label>' +
+            '<div class="seg p-kind-seg" id="p-kind">' +
+              '<button type="button" data-kind="period" class="' + (curKind === 'period' ? 'active' : '') + '">생리</button>' +
+              '<button type="button" data-kind="spotting" class="' + (curKind === 'spotting' ? 'active' : '') + '">부정출혈</button>' +
+            '</div>' +
+          '</div>' +
           '<div class="form-row">' +
             '<div class="form-field"><label for="p-start">시작일</label>' +
               '<input id="p-start" type="date" max="' + tk + '" value="' + startVal + '"></div>' +
@@ -1227,35 +1276,47 @@
           '</div>' +
         '</div>';
     } else {
-      html += '<button class="pill-btn secondary" id="p-add">+ 지난 생리 기록 추가</button>';
+      html += '<button class="pill-btn secondary" id="p-add">+ 지난 기록 추가 (생리·부정출혈)</button>';
     }
 
-    // 기록 목록 (최근 회차부터) — 박스당 하나, 탭하면 수정 / 밀면 삭제(홈 카드 방식)
-    html += '<h2 class="section-title">기록 (' + eps.length + '회)</h2>';
-    if (!eps.length) {
+    // 기록 목록 — 생리(예측 대상) + 부정출혈(별도)을 합쳐 최근순. 박스당 하나, 밀면 수정·삭제
+    var rows = [];
+    eps.forEach(function (ep, i) {
+      var len = diffDays(ep.start, ep.end) + 1;
+      var cycleTxt = i > 0 ? '주기 ' + diffDays(eps[i - 1].start, ep.start) + '일' : '';
+      rows.push({ kind: 'period', start: ep.start, end: ep.end, meta: len + '일간' + (cycleTxt ? ' · ' + cycleTxt : '') });
+    });
+    spottingEpisodes().forEach(function (ep) {
+      var len = diffDays(ep.start, ep.end) + 1;
+      rows.push({ kind: 'spotting', start: ep.start, end: ep.end, meta: len + '일간' });
+    });
+    rows.sort(function (a, b) { return a.start < b.start ? 1 : (a.start > b.start ? -1 : 0); });
+
+    html += '<h2 class="section-title">기록 (' + rows.length + '개)</h2>';
+    if (!rows.length) {
       html += '<div class="empty">아직 기록이 없어요.<br>달력에서 날짜를 누르거나 위 버튼으로 추가해 주세요.</div>';
     } else {
-      for (var ei = eps.length - 1; ei >= 0; ei--) {
-        var ep = eps[ei];
-        var len = diffDays(ep.start, ep.end) + 1;
-        var cycleTxt = ei > 0 ? '주기 ' + diffDays(eps[ei - 1].start, ep.start) + '일' : '';
-        var startLabel = esc(fmtKeyShort(ep.start).replace(' · 오늘', ''));
-        var meta = len + '일간' + (cycleTxt ? ' · ' + cycleTxt : '');
+      rows.forEach(function (r) {
+        var startLabel = esc(fmtKeyShort(r.start).replace(' · 오늘', ''));
+        var badge = r.kind === 'spotting'
+          ? '<span class="ep-badge spotting">부정출혈</span>'
+          : '<span class="ep-badge period">생리</span>';
+        var key = r.kind + '|' + r.start + '|' + r.end;
         html +=
           '<div class="swipe-wrap ep-wrap">' +
             '<div class="ep-actions">' +
-              '<button class="ep-act edit" data-ep-edit="' + ep.start + '|' + ep.end + '">수정</button>' +
-              '<button class="ep-act del" data-ep-del="' + ep.start + '|' + ep.end + '">삭제</button>' +
+              '<button class="ep-act edit" data-ep-edit="' + key + '">수정</button>' +
+              '<button class="ep-act del" data-ep-del="' + key + '">삭제</button>' +
             '</div>' +
             '<section class="card ep-card swipe-content" role="button" tabindex="0">' +
               '<div class="ep-main">' +
-                '<div class="ep-range">' + startLabel + '</div>' +
-                '<div class="ep-meta">' + meta + '</div>' +
+                '<div class="ep-range">' + startLabel + ' ' + badge + '</div>' +
+                '<div class="ep-meta">' + r.meta + '</div>' +
               '</div>' +
               '<span class="d-swipe-hint">' + ICON.chevronL + '</span>' +
             '</section>' +
           '</div>';
-      }
+      });
     }
 
     app.innerHTML = html;
@@ -1286,6 +1347,15 @@
       updatePreview();
       startEl.addEventListener('change', updatePreview);
       lenEl.addEventListener('input', updatePreview);
+      // 생리 / 부정출혈 선택
+      app.querySelectorAll('#p-kind button').forEach(function (kb) {
+        kb.addEventListener('click', function () {
+          curKind = kb.getAttribute('data-kind');
+          app.querySelectorAll('#p-kind button').forEach(function (b) {
+            b.classList.toggle('active', b.getAttribute('data-kind') === curKind);
+          });
+        });
+      });
       document.getElementById('p-cancel').addEventListener('click', function () {
         state.periodAdd = false; state.periodEdit = null;
         renderPeriod();
@@ -1301,8 +1371,13 @@
         if (n > 14) { fail('기간은 최대 14일까지 입력할 수 있어요.'); return; }
         // 시작일은 오늘 이전이어야 하지만, 진행 중인 주기는 종료일이 미래여도 기간을 그대로 인정
         var end = addDays(start, n - 1);
-        if (state.periodEdit) removePeriodRange(state.periodEdit.start, state.periodEdit.end);
-        addPeriodRange(start, end);
+        // 수정이면 원래 종류의 기록을 먼저 지우고(종류 바꿔도 정상 이동), 선택한 종류로 추가
+        if (state.periodEdit) {
+          if ((state.periodEdit.kind || 'period') === 'spotting') removeSpottingRange(state.periodEdit.start, state.periodEdit.end);
+          else removePeriodRange(state.periodEdit.start, state.periodEdit.end);
+        }
+        if (curKind === 'spotting') addSpottingRange(start, end);
+        else addPeriodRange(start, end);
         state.periodAdd = false; state.periodEdit = null;
         renderPeriod();
       });
@@ -1313,17 +1388,19 @@
     });
     app.querySelectorAll('[data-ep-edit]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var p = btn.getAttribute('data-ep-edit').split('|');
-        state.periodEdit = { start: p[0], end: p[1] };
+        var p = btn.getAttribute('data-ep-edit').split('|'); // kind|start|end
+        state.periodEdit = { kind: p[0], start: p[1], end: p[2] };
         state.periodAdd = false;
         renderPeriod();
       });
     });
     app.querySelectorAll('[data-ep-del]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var p = btn.getAttribute('data-ep-del').split('|');
-        if (window.confirm('이 생리 기록을 삭제할까요?')) {
-          removePeriodRange(p[0], p[1]);
+        var p = btn.getAttribute('data-ep-del').split('|'); // kind|start|end
+        var label = p[0] === 'spotting' ? '부정출혈' : '생리';
+        if (window.confirm('이 ' + label + ' 기록을 삭제할까요?')) {
+          if (p[0] === 'spotting') removeSpottingRange(p[1], p[2]);
+          else removePeriodRange(p[1], p[2]);
           state.periodEdit = null;
           renderPeriod();
         }

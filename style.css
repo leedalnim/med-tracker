@@ -18,6 +18,8 @@
   --nav-shadow: 0 12px 36px rgba(17, 17, 20, 0.18);
   --ovul: #6D6AA6;
   --ovul-soft: rgba(109, 106, 166, 0.14);
+  --spot: #B8791F;
+  --spot-soft: rgba(184, 121, 31, 0.15);
   --radius: 22px;
   --radius-sm: 14px;
 }
@@ -42,6 +44,8 @@
   --nav-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
   --ovul: #A6A2E0;
   --ovul-soft: rgba(166, 162, 224, 0.18);
+  --spot: #D8A45E;
+  --spot-soft: rgba(216, 164, 94, 0.18);
 }
 
 /* 시스템 설정 자동 추종 — 단, 사용자가 라이트/다크를 명시하면(data-theme) 그 값이 우선 */
@@ -607,6 +611,17 @@ input, select {
 .cal-legend .lg.pred { border: 1.5px dashed var(--accent); }
 .cal-legend .lg.fertile { background: var(--ovul-soft); border: 1px solid var(--ovul); }
 .cal-legend .lg.ovul { background: var(--ovul); }
+/* 부정출혈: 생리(코랄)와 구분되는 앰버 톤 */
+.cal-day.spotting { background: var(--spot-soft); color: var(--spot); font-weight: 800; }
+.cal-legend .lg.spotting { background: var(--spot-soft); border: 1px solid var(--spot); }
+/* 기록 카드 종류 뱃지 */
+.ep-badge { display: inline-block; vertical-align: middle; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; margin-left: 6px; letter-spacing: -0.2px; }
+.ep-badge.period { background: var(--accent-soft); color: var(--accent); }
+.ep-badge.spotting { background: var(--spot-soft); color: var(--spot); }
+/* 하루 패널: 생리/부정출혈 토글 두 개 */
+.dp-toggles { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.period-toggle.spot { border-color: var(--spot); color: var(--spot); }
+.period-toggle.spot.on { background: var(--spot); color: #fff; }
 
 /* 배란·가임기 요약 */
 .ovul-box {
