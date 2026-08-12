@@ -31,7 +31,8 @@
   };
 
   var KEY = {
-    meds: 'mt.meds',          // [{id, name, unit, type, intervalHours, maxPerDay}]
+    meds: 'mt.meds',          // [{id, name, unit, type, intervalHours, maxPerDay}] — 홈에서 트래킹 중인 약
+    favorites: 'mt.favorites',// [{id, name, unit, type, intervalHours, maxPerDay}] — 자주 찾는 약(홈 추가 시 후보). 홈엔 안 뜸
     doses: 'mt.doses',        // [{id, medId, ts}]
     period: 'mt.period',      // ['YYYY-MM-DD', ...] 생리로 표시한 날
     spotting: 'mt.spotting',  // ['YYYY-MM-DD', ...] 부정출혈로 표시한 날 (예측 계산엔 미포함)
@@ -157,6 +158,10 @@
   // 홈에는 직접 등록한 약만 표시 — 자주 쓰는 약 목록은 약 추가 폼에서 선택
   function getMeds() { return storage.get(KEY.meds, []); }
   function saveMeds(meds) { storage.set(KEY.meds, meds); }
+  function getFavorites() { return storage.get(KEY.favorites, []); }
+  function saveFavorites(f) { storage.set(KEY.favorites, f); }
+  // 약 추가 폼 콤보 후보 = 기본 목록 + 사용자가 등록한 '자주 찾는 약'
+  function comboList() { return MED_CATALOG.concat(getFavorites()); }
   function medById(id) {
     return getMeds().find(function (m) { return m.id === id; }) || null;
   }
@@ -245,6 +250,7 @@
       exportedAt: new Date().toISOString(),
       data: {
         meds: storage.get(KEY.meds, []),
+        favorites: storage.get(KEY.favorites, []),
         doses: storage.get(KEY.doses, []),
         period: storage.get(KEY.period, []),
         spotting: storage.get(KEY.spotting, []),
@@ -278,6 +284,7 @@
         var data = obj && obj.data ? obj.data : obj;
         if (!data || !Array.isArray(data.meds)) throw new Error('형식이 올바르지 않아요');
         storage.set(KEY.meds, data.meds || []);
+        if (Array.isArray(data.favorites)) storage.set(KEY.favorites, data.favorites);
         storage.set(KEY.doses, Array.isArray(data.doses) ? data.doses : []);
         storage.set(KEY.period, Array.isArray(data.period) ? data.period : []);
         storage.set(KEY.spotting, Array.isArray(data.spotting) ? data.spotting : []);
@@ -438,6 +445,7 @@
     else if (screen !== 'medForm') state.editMedId = null;
     if ('detailMedId' in opts) state.detailMedId = opts.detailMedId;
     if ('returnTo' in opts) state.returnTo = opts.returnTo;
+    state.favMode = !!opts.favMode; // '자주 찾는 약' 추가 모드 (mt.favorites 저장, 홈엔 안 뜸)
     state.timeEdit = null;
     state.periodAdd = false;
     state.doseAdd = false;
@@ -1418,20 +1426,23 @@
         '<p class="sub">약 관리와 앱 환경을 설정해요</p>' +
       '</header>';
 
+    function medMeta(med) {
+      return med.type === 'check'
+        ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
+        : '최소 간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
+    }
+    // 내 약 관리 = 홈에서 트래킹 중인 약 (여기선 수정/삭제만, 추가는 홈에서)
     html += '<div class="settings-group"><h2>내 약 관리</h2>';
     var meds = getMeds();
     if (!meds.length) {
-      html += '<p class="settings-note">등록된 약이 없어요.</p>';
+      html += '<p class="settings-note">트래킹 중인 약이 없어요. 홈 화면에서 추가하세요.</p>';
     }
     meds.forEach(function (med) {
-      var meta = med.type === 'check'
-        ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
-        : '최소 간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
       html +=
         '<div class="med-row">' +
           '<div>' +
             '<div class="r-name">' + esc(med.name) + '</div>' +
-            '<div class="r-meta">' + meta + '</div>' +
+            '<div class="r-meta">' + medMeta(med) + '</div>' +
           '</div>' +
           '<div class="r-actions">' +
             '<button data-edit="' + esc(med.id) + '">수정</button>' +
@@ -1439,7 +1450,25 @@
           '</div>' +
         '</div>';
     });
-    html += '<button class="pill-btn secondary" id="add-med">+ 자주 찾는 약 추가</button></div>';
+    html += '</div>';
+
+    // 자주 찾는 약 = 홈에서 '약 추가'할 때 고르는 후보 목록 (여기 추가해도 홈엔 안 뜸)
+    html += '<div class="settings-group"><h2>자주 찾는 약</h2>';
+    var favs = getFavorites();
+    html += '<p class="settings-note">홈에서 약을 추가할 때 여기서 골라요. 추가해도 홈엔 바로 뜨지 않아요.</p>';
+    favs.forEach(function (f) {
+      html +=
+        '<div class="med-row">' +
+          '<div>' +
+            '<div class="r-name">' + esc(f.name) + '</div>' +
+            '<div class="r-meta">' + medMeta(f) + '</div>' +
+          '</div>' +
+          '<div class="r-actions">' +
+            '<button class="danger" data-fav-del="' + esc(f.id) + '">삭제</button>' +
+          '</div>' +
+        '</div>';
+    });
+    html += '<button class="pill-btn secondary" id="add-fav">+ 자주 찾는 약 추가</button></div>';
 
     // 화면 테마: 시스템 / 라이트 / 다크
     var curTheme = getTheme();
@@ -1508,8 +1537,18 @@
         else { window.alert('불러오기 실패: ' + msg); }
       });
     });
-    document.getElementById('add-med').addEventListener('click', function () {
-      go('medForm', { editMedId: null, returnTo: 'settings' });
+    document.getElementById('add-fav').addEventListener('click', function () {
+      go('medForm', { editMedId: null, favMode: true, returnTo: 'settings' });
+    });
+    app.querySelectorAll('[data-fav-del]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-fav-del');
+        var f = getFavorites().filter(function (x) { return x.id === id; })[0];
+        if (f && window.confirm('자주 찾는 약에서 "' + f.name + '"을(를) 뺄까요?')) {
+          saveFavorites(getFavorites().filter(function (x) { return x.id !== id; }));
+          renderSettings();
+        }
+      });
     });
     app.querySelectorAll('[data-edit]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -1532,10 +1571,11 @@
     app.className = 'no-nav';
     var editing = state.editMedId ? medById(state.editMedId) : null;
     var curType = editing ? (editing.type || 'interval') : 'interval';
-    // 설정에서 여는 '자주 찾는 약 추가' = 간단 폼(기록 방식 선택 없음, 간격 유무로 자동 판단)
-    var simpleAdd = !editing && state.returnTo === 'settings';
-    // 수정·간단추가에선 기록 방식 토글 없이 '간격 유무'로 타입 자동 판단(간격 있으면 트래킹, 비우면 매일 체크)
-    var inferMode = editing || simpleAdd;
+    // 설정에서 여는 '자주 찾는 약 추가' 모드(mt.favorites에 저장, 홈엔 안 뜸)
+    var favMode = !!state.favMode;
+    // 수정·자주찾는약추가에선 기록 방식 토글 없이 '간격 유무'로 타입 자동 판단(간격 있으면 트래킹, 비우면 매일 체크)
+    var inferMode = editing || favMode;
+    var CATALOG = comboList(); // 기본 목록 + 자주 찾는 약
 
     // 약 이름: 직접 만든 콤보(검색 + 목록 선택). datalist가 iOS에서 안 뜨는 문제 대응
     var nameFieldHtml =
@@ -1546,7 +1586,7 @@
             'placeholder="약 이름 검색 또는 직접 입력" value="' + (editing ? esc(editing.name) : '') + '">' +
           '<button type="button" class="combo-caret" id="name-caret" aria-label="약 목록 열기">' + ICON.chevron + '</button>' +
           '<ul class="combo-list" id="name-list" hidden>' +
-            MED_CATALOG.map(function (c, i) {
+            CATALOG.map(function (c, i) {
               return '<li data-cat="' + i + '">' + esc(c.name) + '</li>';
             }).join('') +
           '</ul>' +
@@ -1565,12 +1605,12 @@
     app.innerHTML =
       '<div class="back-head">' +
         '<button id="back" aria-label="뒤로">←</button>' +
-        '<h1>' + (editing ? '약 수정' : (simpleAdd ? '자주 찾는 약 추가' : '약 추가')) + '</h1>' +
+        '<h1>' + (editing ? '약 수정' : (favMode ? '자주 찾는 약 추가' : '약 추가')) + '</h1>' +
       '</div>' +
       '<div class="card">' +
         nameFieldHtml +
         // 기록 방식은 '홈 약 추가'에서만 선택. 수정·자주찾는약추가에선 감춤(간격 유무로 자동 판단)
-        (editing || simpleAdd ? '' :
+        (editing || favMode ? '' :
           '<div class="form-field">' +
             '<label>기록 방식</label>' +
             '<div class="type-select">' +
@@ -1637,7 +1677,7 @@
       var f = (filter || '').trim().toLowerCase();
       var any = false;
       [].forEach.call(nameList.children, function (li) {
-        var nm = MED_CATALOG[Number(li.getAttribute('data-cat'))].name.toLowerCase();
+        var nm = CATALOG[Number(li.getAttribute('data-cat'))].name.toLowerCase();
         var show = !f || nm.indexOf(f) >= 0;
         li.hidden = !show;
         if (show) any = true;
@@ -1651,13 +1691,13 @@
     nameInput.addEventListener('focus', function () { renderNameList(nameInput.value); });
     nameInput.addEventListener('input', function () {
       renderNameList(nameInput.value);
-      var c = MED_CATALOG.find(function (m) { return m.name === nameInput.value; });
+      var c = CATALOG.find(function (m) { return m.name === nameInput.value; });
       if (c) fillFromCatalog(c); // 이름이 정확히 일치하면 자동 입력
     });
     nameList.addEventListener('click', function (e) {
       var li = e.target.closest('[data-cat]');
       if (!li) return;
-      fillFromCatalog(MED_CATALOG[Number(li.getAttribute('data-cat'))]);
+      fillFromCatalog(CATALOG[Number(li.getAttribute('data-cat'))]);
       nameList.hidden = true;
     });
     document.addEventListener('click', function (e) {
@@ -1696,18 +1736,22 @@
         max = maxRaw && max > 0 ? max : null;
       }
 
-      var newMed = {
+      var record = {
         id: editing ? editing.id : uid(),
         name: name, unit: unit, type: effType,
         intervalHours: interval, maxPerDay: max
       };
-      var meds = getMeds();
-      if (editing) {
-        meds = meds.map(function (mm) { return mm.id === editing.id ? newMed : mm; });
+      if (favMode) {
+        // '자주 찾는 약'은 mt.favorites에만 저장 — 홈(트래킹 약)엔 영향 없음
+        var favs = getFavorites();
+        favs.push(record);
+        saveFavorites(favs);
       } else {
-        meds.push(newMed);
+        var meds = getMeds();
+        if (editing) meds = meds.map(function (mm) { return mm.id === editing.id ? record : mm; });
+        else meds.push(record);
+        saveMeds(meds);
       }
-      saveMeds(meds);
       backFromForm();
     });
 
