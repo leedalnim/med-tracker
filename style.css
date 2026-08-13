@@ -361,6 +361,20 @@ input, select {
   transition: stroke-dashoffset 0.6s ease;
 }
 .ring-fg.ready { stroke: var(--accent); }
+
+/* 체크 약 24시간 부채꼴(파이) 링 — 남은 만큼 안쪽이 채워짐 */
+.pring-track { fill: none; stroke: var(--line); stroke-width: 6; }
+.pring-fill { fill: var(--accent); fill-opacity: 0.12; }
+.pring-arc {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s ease;
+}
+.hero-ring.pie .pring-track { stroke-width: 5; }
+.hero-ring.pie .pring-arc { stroke-width: 3; }
+
 .ring-center {
   position: absolute;
   inset: 0;

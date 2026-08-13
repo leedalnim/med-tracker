@@ -501,7 +501,13 @@
       if (state.screen !== 'home') { clearInterval(tickTimer); return; }
       var needFull = false;
       getMeds().forEach(function (m) {
-        if (m.type === 'check') return;
+        if (m.type === 'check') {
+          var crk = computeCheckRing(m);
+          var cel = document.getElementById('crc-' + m.id);
+          if (crk.active) { if (cel) cel.textContent = fmtHM(crk.remainMs); else needFull = true; }
+          else if (cel) needFull = true; // 24시간 지남/날짜 바뀜 → 링 제거 위해 전체 갱신
+          return;
+        }
         var cs = computeInterval(m);
         var el = document.getElementById('rc-' + m.id);
         if (!cs.ready && !cs.reached) {
@@ -554,6 +560,62 @@
           'stroke-dasharray="' + s.C.toFixed(2) + '" stroke-dashoffset="' + s.dashoffset.toFixed(2) + '" ' +
           'transform="rotate(-90 60 60)"></circle>' +
       '</svg>';
+  }
+
+  var DAY_MS = 24 * 3600 * 1000;
+  function fmtHM(ms) { // 남은 시간 H:MM (24시간 스케일용, 초 없음)
+    var t = Math.max(0, ms);
+    var h = Math.floor(t / 3600000);
+    var m = Math.floor((t % 3600000) / 60000);
+    return h + ':' + String(m).padStart(2, '0');
+  }
+
+  // 복용 체크 약의 24시간 링 상태 — 오늘 먹었을 때만 활성(먹은 시각 + 24시간 기준으로 소진)
+  function computeCheckRing(med) {
+    var todays = todayDosesForMed(med.id);
+    if (!todays.length) return { active: false };
+    var last = todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; });
+    var remainMs = Math.max(0, last.ts + DAY_MS - Date.now());
+    return {
+      active: true, last: last, remainMs: remainMs,
+      frac: Math.max(0, Math.min(1, remainMs / DAY_MS))
+    };
+  }
+
+  // 부채꼴(파이) 채우기 링 SVG — 남은 비율 frac 만큼 12시 방향부터 시계방향으로 채움
+  function pieRingSvg(frac, centerHtml) {
+    var CX = 60, CY = 60, RR = 48, TAU = Math.PI * 2;
+    var wedge;
+    if (frac >= 0.999) {
+      wedge = '<circle class="pring-fill" cx="60" cy="60" r="' + RR + '"></circle>';
+    } else if (frac > 0.001) {
+      var a0 = -Math.PI / 2, a1 = -Math.PI / 2 + frac * TAU;
+      var x0 = CX + RR * Math.cos(a0), y0 = CY + RR * Math.sin(a0);
+      var x1 = CX + RR * Math.cos(a1), y1 = CY + RR * Math.sin(a1);
+      var large = frac > 0.5 ? 1 : 0;
+      wedge = '<path class="pring-fill" d="M60 60 L' + x0.toFixed(1) + ' ' + y0.toFixed(1) +
+        ' A' + RR + ' ' + RR + ' 0 ' + large + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Z"></path>';
+    } else {
+      wedge = '';
+    }
+    var C = TAU * RR, off = C * (1 - frac);
+    return '<svg viewBox="0 0 120 120" aria-hidden="true">' +
+        '<circle class="pring-track" cx="60" cy="60" r="' + RR + '"></circle>' +
+        wedge +
+        '<circle class="pring-arc" cx="60" cy="60" r="' + RR + '" ' +
+          'stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" ' +
+          'transform="rotate(-90 60 60)"></circle>' +
+      '</svg>' + (centerHtml || '');
+  }
+
+  // 체크 약 홈/상세 공통 파이 링 (중앙: 남은 H:MM)
+  function checkRingHtml(med, cr, sizeClass, centerId) {
+    var center =
+      '<div class="ring-center">' +
+        '<div class="rc-time"' + (centerId ? ' id="' + centerId + '"' : '') + '>' + fmtHM(cr.remainMs) + '</div>' +
+        '<div class="rc-label">남음</div>' +
+      '</div>';
+    return '<div class="ring-wrap' + (sizeClass ? ' ' + sizeClass : '') + '">' + pieRingSvg(cr.frac, center) + '</div>';
   }
 
   // 마지막 복용 후 이 시간이 지나면 '경과 시간' 표시를 숨기고 깔끔한 '복용 가능'으로 초기화
@@ -662,6 +724,8 @@
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
       statusLine = todayLast ? '오늘 ' + esc(fmtTimeKoMin(todayLast.ts)) + ' 복용' : '오늘 아직 안 드셨어요';
+      var cr = computeCheckRing(med); // 오늘 먹었으면 24시간 소진 파이 링 표시
+      if (cr.active) ringHtml = checkRingHtml(med, cr, 'sm', 'crc-' + med.id);
     } else {
       var rv = buildIntervalRing(med, 'sm');
       ringHtml = rv.ringHtml;
@@ -673,17 +737,22 @@
       warn = '<div class="warn-banner">오늘 최대치 ' + med.maxPerDay + med.unit + ' 초과 — 현재 ' + todays.length + med.unit + '</div>';
     }
 
-    // 체크 약: '복용 시각'과 '먹었어요' 버튼을 같은 줄(시각 왼쪽·버튼 오른쪽). 간격 약은 기존 스택
-    var mcMain = isCheck
-      ? '<div class="mc-main">' + titleRow +
+    // 레이아웃: (1) 링 있는 체크 약(오늘 먹음)·간격 약은 [제목·상태·버튼] 세로 스택,
+    //          (2) 링 없는 체크 약은 상태와 버튼을 같은 줄(시각 왼쪽·버튼 오른쪽)
+    var mcMain;
+    if (isCheck && !ringHtml) {
+      mcMain = '<div class="mc-main">' + titleRow +
           '<div class="mc-checkrow">' +
             '<p class="status-line">' + (statusLine || '') + '</p>' + logBtn +
           '</div>' +
-        '</div>'
-      : '<div class="mc-main">' + titleRow +
-          (statusLine ? '<p class="status-line">' + statusLine + '</p>' : '') +
-          actionsRow +
         '</div>';
+    } else {
+      var acts = isCheck ? '<div class="mc-actions">' + logBtn + '</div>' : actionsRow;
+      mcMain = '<div class="mc-main">' + titleRow +
+          (statusLine ? '<p class="status-line">' + statusLine + '</p>' : '') +
+          acts +
+        '</div>';
+    }
 
     // 스와이프 삭제: 카드를 왼쪽으로 밀면 뒤에서 삭제 버튼이 드러남
     return (
@@ -811,9 +880,17 @@
       var checkBtn = todayLastD
         ? '<button class="pill-btn check-log-full done" disabled>' + ICON.check + '오늘 드셨어요!</button>'
         : '<button class="pill-btn check-log-full" id="detail-log">' + ICON.pillPlus + '먹었어요</button>';
+      var crD = computeCheckRing(med); // 오늘 먹었으면 대형 파이 링
+      var heroD = crD.active
+        ? '<div class="hero-ring pie">' + pieRingSvg(crD.frac,
+            '<div class="hero-center"><div class="hero-label">다음 복용까지</div>' +
+            '<div class="hero-big" id="chero-count">' + fmtHM(crD.remainMs) + '</div>' +
+            '<div class="hero-sub">' + esc(fmtTimeKoMin(crD.last.ts + DAY_MS)) + ' 즈음</div></div>') +
+          '</div>'
+        : '';
       topCard =
-        '<div class="card">' +
-          summary + checkBtn +
+        '<div class="card' + (crD.active ? ' detail-hero-card' : '') + '">' +
+          heroD + summary + checkBtn +
         '</div>';
     } else {
       topCard =
@@ -996,6 +1073,15 @@
           el.textContent = fmtCountdown(s.remainMs);
         }, 1000);
       }
+    } else if (isCheck && !state.doseAdd && !state.timeEdit) {
+      // 체크 약 24시간 파이 링 카운트다운 매초 갱신
+      tickTimer = setInterval(function () {
+        if (state.screen !== 'medDetail') { clearInterval(tickTimer); return; }
+        var crk = computeCheckRing(med);
+        var el = document.getElementById('chero-count');
+        if (!crk.active || !el) return;
+        el.textContent = fmtHM(crk.remainMs);
+      }, 1000);
     }
   }
 
