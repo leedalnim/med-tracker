@@ -1945,10 +1945,20 @@
       refreshing = true;
       window.location.reload();
     });
+    var swReg = null;
+    function checkForUpdate() {
+      if (swReg && swReg.update) { try { swReg.update(); } catch (e) { /* noop */ } }
+    }
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('./sw.js').then(function (reg) {
-        if (reg && reg.update) reg.update(); // 새 배포를 최대한 빨리 확인
+        swReg = reg;
+        checkForUpdate(); // 새 배포를 최대한 빨리 확인
       }).catch(function () { /* noop */ });
     });
+    // 앱을 다시 열거나 포그라운드로 돌아올 때마다 업데이트 확인 (PWA에서 새 버전이 잘 잡히도록)
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') checkForUpdate();
+    });
+    window.addEventListener('focus', checkForUpdate);
   }
 })();
