@@ -131,6 +131,44 @@ input, select {
   font-size: 14px;
   margin-top: 2px;
 }
+.screen-head.with-action { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.sort-toggle {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 13px; font-weight: 700; color: var(--text-dim);
+  border: 1.5px solid var(--line); border-radius: 999px;
+  padding: 8px 14px; background: transparent; flex-shrink: 0;
+}
+.sort-toggle .btn-ico { width: 15px; height: 15px; }
+.sort-toggle:active { transform: scale(0.96); }
+
+/* 정렬 모드 */
+.sort-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 4px 10px; }
+.sort-title { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; }
+.sort-bar-btns { display: flex; gap: 8px; }
+.sb-btn { font-size: 13.5px; font-weight: 700; border-radius: 999px; padding: 9px 17px; }
+.sb-btn.cancel { border: 1.5px solid var(--line); color: var(--text); background: transparent; }
+.sb-btn.done { background: var(--accent); color: var(--accent-text); }
+.sb-btn:active { transform: scale(0.96); }
+.sort-hint { font-size: 12px; color: var(--text-dim); margin: 0 4px 14px; line-height: 1.5; }
+.sort-list { display: flex; flex-direction: column; gap: 10px; }
+.sort-card {
+  background: var(--card); border-radius: 16px; padding: 12px 14px;
+  box-shadow: var(--shadow); display: flex; align-items: center; gap: 10px;
+}
+.sort-handle { color: var(--text-dim); display: inline-flex; opacity: 0.7; }
+.sort-handle .lucide { width: 20px; height: 20px; }
+.sort-name { flex: 1; min-width: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sort-kind { font-size: 12px; font-weight: 700; color: var(--text-dim); }
+.sort-arrows { display: flex; gap: 6px; flex-shrink: 0; }
+.sort-arrow {
+  width: 40px; height: 40px; border-radius: 12px;
+  border: 1.5px solid var(--line); background: transparent; color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+}
+.sort-arrow .lucide { width: 20px; height: 20px; }
+.sort-arrow:active { transform: scale(0.94); background: var(--accent-soft); }
+.sort-arrow.off { opacity: 0.28; pointer-events: none; }
 
 .card {
   background: var(--card);

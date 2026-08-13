@@ -433,7 +433,9 @@
     timeEdit: null,               // {kind:'dose'|'check', id}
     calY: now0.getFullYear(),
     calM: now0.getMonth(),        // 0-11
-    selKey: todayKey()
+    selKey: todayKey(),
+    sortMode: false,              // 홈 약 순서 변경 모드
+    sortIds: null                 // 정렬 모드 임시 순서 (id 배열)
   };
   var app = document.getElementById('app');
   var tickTimer = null;
@@ -449,6 +451,8 @@
     state.timeEdit = null;
     state.periodAdd = false;
     state.doseAdd = false;
+    state.sortMode = false; // 다른 화면으로 이동하면 정렬 모드 해제
+    state.sortIds = null;
     render();
   }
 
@@ -470,14 +474,19 @@
 
   /* ===== 간격 트래커 홈 ===== */
   function renderTrackerHome() {
+    if (state.sortMode) { renderSortMode(); return; }
     app.className = '';
     if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } // 직접 재호출 시 이전 타이머 정리
     var meds = getMeds();
 
+    var sortBtn = meds.length >= 2
+      ? '<button class="sort-toggle" id="sort-on" aria-label="약 순서 변경">' + ICON.sort + '정렬</button>'
+      : '';
     var html =
-      '<header class="screen-head">' +
-        '<h1>복약 트래커</h1>' +
-        '<p class="sub">' + esc(fmtDateLong(Date.now())) + '</p>' +
+      '<header class="screen-head with-action">' +
+        '<div><h1>복약 트래커</h1>' +
+        '<p class="sub">' + esc(fmtDateLong(Date.now())) + '</p></div>' +
+        sortBtn +
       '</header>';
 
     if (!meds.length) {
@@ -493,6 +502,12 @@
     bindMedCards();
     document.getElementById('add-med').addEventListener('click', function () {
       go('medForm', { editMedId: null, returnTo: 'home' });
+    });
+    var sortOn = document.getElementById('sort-on');
+    if (sortOn) sortOn.addEventListener('click', function () {
+      state.sortMode = true;
+      state.sortIds = getMeds().map(function (m) { return m.id; }); // 현재 순서로 시작
+      renderTrackerHome();
     });
     bindBottomNav();
 
@@ -519,6 +534,75 @@
       });
       if (needFull) renderTrackerHome();
     }, 1000);
+  }
+
+  /* ===== 홈 약 순서 변경(정렬) 모드 ===== */
+  function renderSortMode() {
+    app.className = '';
+    if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+    var meds = getMeds();
+    var byId = {};
+    meds.forEach(function (m) { byId[m.id] = m; });
+    // 저장 이후 삭제된 약이 있을 수 있으니 유효 id만, 누락된 약은 뒤에 보충
+    var ids = (state.sortIds || []).filter(function (id) { return byId[id]; });
+    meds.forEach(function (m) { if (ids.indexOf(m.id) < 0) ids.push(m.id); });
+    state.sortIds = ids;
+
+    var rows = ids.map(function (id, i) {
+      var m = byId[id];
+      var kind = m.type === 'check' ? '체크' : '간격';
+      var upOff = i === 0 ? ' off' : '';
+      var downOff = i === ids.length - 1 ? ' off' : '';
+      return (
+        '<div class="sort-card">' +
+          '<span class="sort-handle">' + ICON.grip + '</span>' +
+          '<span class="sort-name">' + esc(m.name) + '<span class="sort-kind"> · ' + kind + '</span></span>' +
+          '<div class="sort-arrows">' +
+            '<button class="sort-arrow' + upOff + '" data-up="' + esc(id) + '" aria-label="위로">' + ICON.arrowUp + '</button>' +
+            '<button class="sort-arrow' + downOff + '" data-down="' + esc(id) + '" aria-label="아래로">' + ICON.arrowDown + '</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+
+    app.innerHTML =
+      '<div class="sort-bar">' +
+        '<div class="sort-title">약 순서 변경</div>' +
+        '<div class="sort-bar-btns">' +
+          '<button class="sb-btn cancel" id="sort-cancel">취소</button>' +
+          '<button class="sb-btn done" id="sort-done">완료</button>' +
+        '</div>' +
+      '</div>' +
+      '<p class="sort-hint">▲▼로 순서를 바꾸고 <b>완료</b>를 누르면 저장, <b>취소</b>하면 원래대로 돌아가요.</p>' +
+      '<div class="sort-list">' + rows + '</div>';
+
+    function move(id, dir) {
+      var i = state.sortIds.indexOf(id);
+      var j = i + dir;
+      if (i < 0 || j < 0 || j >= state.sortIds.length) return;
+      var arr = state.sortIds.slice();
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+      state.sortIds = arr;
+      renderSortMode();
+    }
+    [].forEach.call(app.querySelectorAll('[data-up]'), function (b) {
+      b.addEventListener('click', function () { move(b.getAttribute('data-up'), -1); });
+    });
+    [].forEach.call(app.querySelectorAll('[data-down]'), function (b) {
+      b.addEventListener('click', function () { move(b.getAttribute('data-down'), 1); });
+    });
+    document.getElementById('sort-cancel').addEventListener('click', function () {
+      state.sortMode = false; state.sortIds = null; // 변경 폐기
+      renderTrackerHome();
+    });
+    document.getElementById('sort-done').addEventListener('click', function () {
+      var order = state.sortIds.slice();
+      var cur = getMeds();
+      cur.sort(function (a, b) { return order.indexOf(a.id) - order.indexOf(b.id); });
+      saveMeds(cur); // 순서만 저장 (기록·설정은 그대로)
+      state.sortMode = false; state.sortIds = null;
+      renderTrackerHome();
+    });
   }
 
   // 간격 트래커 약의 상태·링 진행도 계산 (원시값)
@@ -1918,7 +2002,14 @@
     // download (lucide) — 내보내기
     download: lucide('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>'),
     // upload (lucide) — 불러오기
-    upload: lucide('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>')
+    upload: lucide('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>'),
+    // arrow-up-down (lucide) — 정렬 버튼
+    sort: lucide('<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>', 'btn-ico'),
+    // grip-vertical (lucide) — 드래그 핸들 느낌
+    grip: lucide('<circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/>'),
+    // chevron-up / down (lucide) — 순서 이동
+    arrowUp: lucide('<path d="m18 15-6-6-6 6"/>'),
+    arrowDown: lucide('<path d="m6 9 6 6 6-6"/>')
   };
 
   function bottomNavHtml(active) {
