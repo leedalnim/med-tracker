@@ -386,6 +386,8 @@ input, select {
   padding: 14px;
 }
 .ring-center .rc-label { font-size: 10px; color: var(--text-dim); font-weight: 700; }
+.ring-center .rc-pre { font-size: 12px; color: var(--text-dim); font-weight: 700; }
+.ring-wrap.sm .ring-center .rc-pre { font-size: 11px; }
 .ring-center .rc-time {
   font-size: 16px;
   font-weight: 800;

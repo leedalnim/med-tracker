@@ -1,5 +1,5 @@
 /* 복약 트래커 서비스워커 — 오프라인 캐싱 */
-var CACHE_NAME = 'med-tracker-v69';
+var CACHE_NAME = 'med-tracker-v70';
 var ASSETS = [
   './',
   './index.html',

@@ -619,6 +619,12 @@
     return '<div class="ring-wrap' + (sizeClass ? ' ' + sizeClass : '') + '">' + pieRingSvg(cr.frac, center) + '</div>';
   }
 
+  // 아직 안 먹은 체크 약의 빈 링 (회색 원 + '복용 전')
+  function emptyCheckRingHtml(sizeClass) {
+    var center = '<div class="ring-center"><div class="rc-pre">복용 전</div></div>';
+    return '<div class="ring-wrap' + (sizeClass ? ' ' + sizeClass : '') + '">' + pieRingSvg(0, center) + '</div>';
+  }
+
   // 마지막 복용 후 이 시간이 지나면 '경과 시간' 표시를 숨기고 깔끔한 '복용 가능'으로 초기화
   var ELAPSED_RESET_MS = 24 * 3600 * 1000;
   function recentElapsed(last) { // 24시간 이내면 경과 문자열, 아니면 null
@@ -678,12 +684,16 @@
       subLabel = fmtTimeKoMin(s.last.ts + s.intervalMs) + ' 예정';
     }
     var frac = (s.reached || s.ready) ? 1 : Math.max(0, Math.min(1, s.remainMs / s.intervalMs));
+    var waiting = !s.reached && !s.ready; // 카운트다운 중 → 버튼 비활성화
+    var heroBtn = waiting
+      ? '<button class="pill-btn hero-log" disabled>' + ICON.pillPlus + '먹었어요</button>'
+      : '<button class="pill-btn hero-log" id="detail-log">' + ICON.pillPlus + '먹었어요</button>';
     var heroCenter =
       '<div class="hero-center">' +
         '<div class="hero-label' + cls + '">' + topLabel + '</div>' +
         (bigVal ? '<div class="hero-big"' + (bigId || '') + '>' + esc(bigVal) + '</div>' : '') +
         (subLabel ? '<div class="hero-sub">' + esc(subLabel) + '</div>' : '') +
-        '<button class="pill-btn hero-log" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
+        heroBtn +
       '</div>';
     return '<div class="hero-ring pie">' + pieRingSvg(frac, heroCenter) + '</div>';
   }
@@ -697,11 +707,20 @@
     var countTxt = med.maxPerDay ? todays.length + '/' + med.maxPerDay : todays.length + '회';
 
     var takenB = todays.length > 0;
+    var ivState = isCheck ? null : computeInterval(med);
+    var ivWaiting = ivState && !ivState.ready && !ivState.reached; // 간격 약 대기중(카운트다운)
 
-    // 먹었어요 버튼: 체크 약은 오늘 먹으면 '오늘 드셨어요!'로 바뀌고 비활성화(트래커와 별개 스타일)
-    var logBtn = (isCheck && takenB)
-      ? '<button class="pill-btn compact done" disabled>' + ICON.check + '오늘 드셨어요!</button>'
-      : '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>';
+    // 먹었어요 버튼:
+    //  - 체크 약: 오늘 먹으면 '오늘 드셨어요!'로 바뀌고 비활성화(별개 스타일)
+    //  - 간격 약: 남은 시간(카운트다운) 표시 중엔 비활성화, 복용 가능해지면 활성화
+    var logBtn;
+    if (isCheck && takenB) {
+      logBtn = '<button class="pill-btn compact done" disabled>' + ICON.check + '오늘 드셨어요!</button>';
+    } else if (ivWaiting) {
+      logBtn = '<button class="pill-btn compact" disabled>' + ICON.pillPlus + '먹었어요</button>';
+    } else {
+      logBtn = '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>';
+    }
 
     // 우상단 배지: 체크 약이면 개수 태그만, 간격 약이면 오늘 N/최대
     var badgeHtml;
@@ -724,8 +743,8 @@
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
       statusLine = todayLast ? '오늘 ' + esc(fmtTimeKoMin(todayLast.ts)) + ' 복용' : '오늘 아직 안 드셨어요';
-      var cr = computeCheckRing(med); // 오늘 먹었으면 24시간 소진 파이 링 표시
-      if (cr.active) ringHtml = checkRingHtml(med, cr, 'sm', 'crc-' + med.id);
+      var cr = computeCheckRing(med); // 오늘 먹었으면 24시간 소진 파이 링, 아니면 빈 링('복용 전')
+      ringHtml = cr.active ? checkRingHtml(med, cr, 'sm', 'crc-' + med.id) : emptyCheckRingHtml('sm');
     } else {
       var rv = buildIntervalRing(med, 'sm');
       ringHtml = rv.ringHtml;
@@ -880,16 +899,19 @@
       var checkBtn = todayLastD
         ? '<button class="pill-btn check-log-full done" disabled>' + ICON.check + '오늘 드셨어요!</button>'
         : '<button class="pill-btn check-log-full" id="detail-log">' + ICON.pillPlus + '먹었어요</button>';
-      var crD = computeCheckRing(med); // 오늘 먹었으면 대형 파이 링
+      var crD = computeCheckRing(med); // 오늘 먹었으면 대형 파이 링, 아니면 빈 링('복용 전')
       var heroD = crD.active
         ? '<div class="hero-ring pie">' + pieRingSvg(crD.frac,
             '<div class="hero-center"><div class="hero-label">다음 복용까지</div>' +
             '<div class="hero-big" id="chero-count">' + fmtHM(crD.remainMs) + '</div>' +
             '<div class="hero-sub">' + esc(fmtTimeKoMin(crD.last.ts + DAY_MS)) + ' 즈음</div></div>') +
           '</div>'
-        : '';
+        : '<div class="hero-ring pie">' + pieRingSvg(0,
+            '<div class="hero-center"><div class="hero-label">복용 전</div>' +
+            '<div class="hero-sub">먹으면 24시간 표시</div></div>') +
+          '</div>';
       topCard =
-        '<div class="card' + (crD.active ? ' detail-hero-card' : '') + '">' +
+        '<div class="card detail-hero-card">' +
           heroD + summary + checkBtn +
         '</div>';
     } else {
