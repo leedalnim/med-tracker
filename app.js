@@ -649,9 +649,10 @@
         '<div class="rc-time"' + (innerId || '') + '>' + innerTime + '</div>' +
         (innerLabel ? '<div class="rc-label">' + innerLabel + '</div>' : '') +
       '</div>';
+    var frac = (s.reached || s.ready) ? 1 : Math.max(0, Math.min(1, s.remainMs / s.intervalMs));
     var ringHtml =
       '<div class="ring-wrap' + (sizeClass ? ' ' + sizeClass : '') + '">' +
-        ringSvg(s) + ringCenter +
+        pieRingSvg(frac, ringCenter) +
       '</div>';
     return { ringHtml: ringHtml, statusLine: statusLine, ready: s.ready, reached: s.reached };
   }
@@ -675,17 +676,15 @@
       bigId = ' id="hero-count"';
       subLabel = fmtTimeKoMin(s.last.ts + s.intervalMs) + ' 예정';
     }
-    return (
-      '<div class="hero-ring">' +
-        ringSvg(s) +
-        '<div class="hero-center">' +
-          '<div class="hero-label' + cls + '">' + topLabel + '</div>' +
-          (bigVal ? '<div class="hero-big"' + (bigId || '') + '>' + esc(bigVal) + '</div>' : '') +
-          (subLabel ? '<div class="hero-sub">' + esc(subLabel) + '</div>' : '') +
-          '<button class="pill-btn hero-log" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
-        '</div>' +
-      '</div>'
-    );
+    var frac = (s.reached || s.ready) ? 1 : Math.max(0, Math.min(1, s.remainMs / s.intervalMs));
+    var heroCenter =
+      '<div class="hero-center">' +
+        '<div class="hero-label' + cls + '">' + topLabel + '</div>' +
+        (bigVal ? '<div class="hero-big"' + (bigId || '') + '>' + esc(bigVal) + '</div>' : '') +
+        (subLabel ? '<div class="hero-sub">' + esc(subLabel) + '</div>' : '') +
+        '<button class="pill-btn hero-log" id="detail-log">' + ICON.pillPlus + '먹었어요</button>' +
+      '</div>';
+    return '<div class="hero-ring pie">' + pieRingSvg(frac, heroCenter) + '</div>';
   }
 
   function medCardHtml(med) {
