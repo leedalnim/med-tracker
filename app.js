@@ -582,29 +582,30 @@
     };
   }
 
-  // 부채꼴(파이) 채우기 링 SVG — 남은 비율 frac 만큼 12시 방향부터 시계방향으로 채움
+  // 부채꼴(파이) 채우기 링 SVG — 남은 비율 frac 만큼 채우되, 소진되는 경계가 12시부터 '시계방향'으로 이동
   function pieRingSvg(frac, centerHtml) {
     var CX = 60, CY = 60, RR = 48, TAU = Math.PI * 2;
-    var wedge;
+    frac = Math.max(0, Math.min(1, frac));
+    var fill = '', arc = '';
     if (frac >= 0.999) {
-      wedge = '<circle class="pring-fill" cx="60" cy="60" r="' + RR + '"></circle>';
+      fill = '<circle class="pring-fill" cx="60" cy="60" r="' + RR + '"></circle>';
+      arc = '<circle class="pring-arc" cx="60" cy="60" r="' + RR + '"></circle>';
     } else if (frac > 0.001) {
-      var a0 = -Math.PI / 2, a1 = -Math.PI / 2 + frac * TAU;
-      var x0 = CX + RR * Math.cos(a0), y0 = CY + RR * Math.sin(a0);
-      var x1 = CX + RR * Math.cos(a1), y1 = CY + RR * Math.sin(a1);
+      // 남은 조각을 12시에서 반시계로 frac 만큼 물러난 지점 ~ 12시 사이에 배치.
+      // → 빈(소진된) 조각은 12시부터 시계방향으로 커진다.
+      var aEnd = -Math.PI / 2;                 // 12시
+      var aStart = -Math.PI / 2 - frac * TAU;  // 채워진 영역의 시작(반시계로 frac)
+      var x0 = CX + RR * Math.cos(aStart), y0 = CY + RR * Math.sin(aStart);
+      var x1 = CX + RR * Math.cos(aEnd), y1 = CY + RR * Math.sin(aEnd);
       var large = frac > 0.5 ? 1 : 0;
-      wedge = '<path class="pring-fill" d="M60 60 L' + x0.toFixed(1) + ' ' + y0.toFixed(1) +
+      fill = '<path class="pring-fill" d="M60 60 L' + x0.toFixed(1) + ' ' + y0.toFixed(1) +
         ' A' + RR + ' ' + RR + ' 0 ' + large + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' Z"></path>';
-    } else {
-      wedge = '';
+      arc = '<path class="pring-arc" fill="none" d="M' + x0.toFixed(1) + ' ' + y0.toFixed(1) +
+        ' A' + RR + ' ' + RR + ' 0 ' + large + ' 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + '"></path>';
     }
-    var C = TAU * RR, off = C * (1 - frac);
     return '<svg viewBox="0 0 120 120" aria-hidden="true">' +
         '<circle class="pring-track" cx="60" cy="60" r="' + RR + '"></circle>' +
-        wedge +
-        '<circle class="pring-arc" cx="60" cy="60" r="' + RR + '" ' +
-          'stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" ' +
-          'transform="rotate(-90 60 60)"></circle>' +
+        fill + arc +
       '</svg>' + (centerHtml || '');
   }
 
