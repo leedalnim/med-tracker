@@ -435,7 +435,8 @@
     calM: now0.getMonth(),        // 0-11
     selKey: todayKey(),
     sortMode: false,              // 홈 약 순서 변경 모드
-    sortIds: null                 // 정렬 모드 임시 순서 (id 배열)
+    sortIds: null,                // 정렬 모드 임시 순서 (id 배열)
+    periodFilter: 'all'           // 생리 기록 목록 필터: 'all'|'period'|'spotting'
   };
   var app = document.getElementById('app');
   var tickTimer = null;
@@ -1509,11 +1510,30 @@
     });
     rows.sort(function (a, b) { return a.start < b.start ? 1 : (a.start > b.start ? -1 : 0); });
 
-    html += '<h2 class="section-title">기록 (' + rows.length + '개)</h2>';
+    // 종류별로 모아 보기 (전체 / 생리 / 부정출혈)
+    var nPeriod = 0, nSpot = 0;
+    rows.forEach(function (r) { if (r.kind === 'spotting') nSpot++; else nPeriod++; });
+    var filter = state.periodFilter || 'all';
+    var shown = filter === 'all' ? rows : rows.filter(function (r) { return r.kind === filter; });
+
+    html += '<h2 class="section-title">기록 (' + shown.length + '개)</h2>';
+    if (rows.length) {
+      var fBtn = function (key, label, n, cls) {
+        return '<button class="pf-chip' + (cls ? ' ' + cls : '') + (filter === key ? ' active' : '') +
+          '" data-pfilter="' + key + '">' + label + '<span class="pf-n">' + n + '</span></button>';
+      };
+      html += '<div class="pf-row">' +
+        fBtn('all', '전체', rows.length, '') +
+        fBtn('period', '생리', nPeriod, 'period') +
+        fBtn('spotting', '부정출혈', nSpot, 'spot') +
+      '</div>';
+    }
     if (!rows.length) {
       html += '<div class="empty">아직 기록이 없어요.<br>달력에서 날짜를 누르거나 위 버튼으로 추가해 주세요.</div>';
+    } else if (!shown.length) {
+      html += '<div class="empty">' + (filter === 'spotting' ? '부정출혈' : '생리') + ' 기록이 아직 없어요.</div>';
     } else {
-      rows.forEach(function (r) {
+      shown.forEach(function (r) {
         var startLabel = esc(fmtKeyShort(r.start).replace(' · 오늘', ''));
         var badge = r.kind === 'spotting'
           ? '<span class="ep-badge spotting">부정출혈</span>'
@@ -1539,6 +1559,14 @@
     app.innerHTML = html;
 
     document.getElementById('back').addEventListener('click', function () { go('calendar'); });
+
+    // 기록 종류 필터 (전체/생리/부정출혈) — 보기만 바꿈, 데이터엔 영향 없음
+    [].forEach.call(app.querySelectorAll('[data-pfilter]'), function (b) {
+      b.addEventListener('click', function () {
+        state.periodFilter = b.getAttribute('data-pfilter');
+        renderPeriod();
+      });
+    });
 
     var addBtn = document.getElementById('p-add');
     if (addBtn) {

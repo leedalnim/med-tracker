@@ -700,6 +700,26 @@ input, select {
 .ep-badge { display: inline-block; vertical-align: middle; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; margin-left: 6px; letter-spacing: -0.2px; }
 .ep-badge.period { background: var(--accent-soft); color: var(--accent); }
 .ep-badge.spotting { background: var(--spot-soft); color: var(--spot); }
+/* 기록 목록 종류 필터 (전체/생리/부정출혈) */
+.pf-row { display: flex; gap: 8px; margin: 0 2px 12px; }
+.pf-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 700; color: var(--text-dim);
+  border: 1.5px solid var(--line); border-radius: 999px;
+  padding: 8px 14px; background: transparent;
+}
+.pf-chip .pf-n {
+  font-size: 11px; font-weight: 800; color: var(--text-dim);
+  background: var(--line); border-radius: 999px; padding: 1px 7px; min-width: 20px; text-align: center;
+}
+.pf-chip:active { transform: scale(0.96); }
+.pf-chip.active { border-color: var(--text); color: var(--text); }
+.pf-chip.active .pf-n { background: var(--text); color: var(--card); }
+.pf-chip.period.active { border-color: var(--accent); color: var(--accent); }
+.pf-chip.period.active .pf-n { background: var(--accent); color: var(--accent-text); }
+.pf-chip.spot.active { border-color: var(--spot); color: var(--spot); }
+.pf-chip.spot.active .pf-n { background: var(--spot); color: #fff; }
+
 /* 하루 패널: 생리/부정출혈 토글 두 개 */
 .dp-toggles { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .period-toggle.spot { border-color: var(--spot); color: var(--spot); }
