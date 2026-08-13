@@ -1750,7 +1750,7 @@
           '</div>') +
         '<div class="form-row">' +
           '<div class="form-field" id="field-interval">' +
-            '<label for="f-interval">최소 간격 (시간' + (inferMode ? ', 선택' : '') + ')</label>' +
+            '<label for="f-interval">최소 간격 (시간)</label>' +
             '<input id="f-interval" type="number" inputmode="decimal" min="0.5" step="0.5" placeholder="4" value="' + (editing && editing.intervalHours != null ? editing.intervalHours : '') + '">' +
           '</div>' +
           '<div class="form-field">' +
