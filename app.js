@@ -160,8 +160,8 @@
   function saveMeds(meds) { storage.set(KEY.meds, meds); }
   function getFavorites() { return storage.get(KEY.favorites, []); }
   function saveFavorites(f) { storage.set(KEY.favorites, f); }
-  // 약 추가 폼 콤보 후보 = 기본 목록 + 사용자가 등록한 '자주 찾는 약'
-  function comboList() { return MED_CATALOG.concat(getFavorites()); }
+  // 약 추가 폼 콤보 후보 = 내가 등록한 '자주 찾는 약'(맨 위) + 기본 목록
+  function comboList() { return getFavorites().concat(MED_CATALOG); }
   function medById(id) {
     return getMeds().find(function (m) { return m.id === id; }) || null;
   }
@@ -1678,7 +1678,8 @@
     var favMode = !!state.favMode;
     // 수정·자주찾는약추가에선 기록 방식 토글 없이 '간격 유무'로 타입 자동 판단(간격 있으면 트래킹, 비우면 매일 체크)
     var inferMode = editing || favMode;
-    var CATALOG = comboList(); // 기본 목록 + 자주 찾는 약
+    var CATALOG = comboList(); // 자주 찾는 약(맨 위) + 기본 목록
+    var favCount = getFavorites().length; // 앞쪽 favCount개가 '자주 찾는 약'
 
     // 약 이름: 직접 만든 콤보(검색 + 목록 선택). datalist가 iOS에서 안 뜨는 문제 대응
     var nameFieldHtml =
@@ -1690,7 +1691,9 @@
           '<button type="button" class="combo-caret" id="name-caret" aria-label="약 목록 열기">' + ICON.chevron + '</button>' +
           '<ul class="combo-list" id="name-list" hidden>' +
             CATALOG.map(function (c, i) {
-              return '<li data-cat="' + i + '">' + esc(c.name) + '</li>';
+              var isFav = i < favCount;
+              return '<li data-cat="' + i + '"' + (isFav ? ' class="fav"' : '') + '>' +
+                (isFav ? '<span class="fav-star">★</span>' : '') + esc(c.name) + '</li>';
             }).join('') +
           '</ul>' +
         '</div>' +

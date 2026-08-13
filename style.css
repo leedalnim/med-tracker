@@ -853,6 +853,10 @@ input, select {
 @media (hover: hover) {
   .combo-list li:hover { background: var(--accent-soft); color: var(--accent); }
 }
+.combo-list li.fav { color: var(--accent); }
+.combo-list li.fav .fav-star { margin-right: 6px; font-size: 12px; vertical-align: 1px; }
+/* 자주 찾는 약과 기본 목록 사이 옅은 구분선 (첫 기본약 위에 선) */
+.combo-list li.fav + li:not(.fav) { border-top: 1px solid var(--line); margin-top: 3px; padding-top: 13px; }
 
 /* 단위 선택 */
 .form-field select {
