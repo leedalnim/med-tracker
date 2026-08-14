@@ -513,8 +513,11 @@
     bindBottomNav();
 
     // 대기 중 약의 링 카운트다운을 매초 갱신 (상태 전환 시 전체 재렌더)
+    var renderedDay = todayKey();
     tickTimer = setInterval(function () {
       if (state.screen !== 'home') { clearInterval(tickTimer); return; }
+      // 자정을 넘기면 '오늘 N회' 집계·버튼 상태가 바뀌므로 한 번 전체 갱신
+      if (todayKey() !== renderedDay) { renderTrackerHome(); return; }
       var needFull = false;
       getMeds().forEach(function (m) {
         if (m.type === 'check') {
@@ -655,16 +658,27 @@
     return h + ':' + String(m).padStart(2, '0');
   }
 
-  // 복용 체크 약의 24시간 링 상태 — 오늘 먹었을 때만 활성(먹은 시각 + 24시간 기준으로 소진)
+  // 복용 체크 약의 24시간 링 상태 — '마지막 복용 시각 + 24시간' 기준.
+  // 날짜(자정)와 무관하게 이어져야 하므로 오늘 기록이 아니라 마지막 복용을 본다.
   function computeCheckRing(med) {
-    var todays = todayDosesForMed(med.id);
-    if (!todays.length) return { active: false };
-    var last = todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; });
-    var remainMs = Math.max(0, last.ts + DAY_MS - Date.now());
+    var last = lastDoseForMed(med.id);
+    if (!last) return { active: false, last: null };
+    var remainMs = last.ts + DAY_MS - Date.now();
+    if (remainMs <= 0) return { active: false, last: last }; // 24시간 지남 → 복용 가능
     return {
       active: true, last: last, remainMs: remainMs,
+      nextAt: last.ts + DAY_MS,
       frac: Math.max(0, Math.min(1, remainMs / DAY_MS))
     };
+  }
+
+  // '내일 21시 0분'처럼 날짜가 넘어가면 앞에 오늘/내일을 붙여 표시
+  function fmtWhenKo(ts) {
+    var k = dateKey(ts), t = todayKey();
+    var prefix = '';
+    if (k === addDays(t, 1)) prefix = '내일 ';
+    else if (k !== t) prefix = fmtKeyShort(k).replace(' · 오늘', '') + ' ';
+    return prefix + fmtTimeKoMin(ts);
   }
 
   // 부채꼴(파이) 채우기 링 SVG — 남은 비율 frac 만큼 채우되, 소진되는 경계가 12시부터 '시계방향'으로 이동
@@ -794,14 +808,15 @@
     var takenB = todays.length > 0;
     var ivState = isCheck ? null : computeInterval(med);
     var ivWaiting = ivState && !ivState.ready && !ivState.reached; // 간격 약 대기중(카운트다운)
+    var cr = isCheck ? computeCheckRing(med) : null;               // 체크 약 24시간 링(자정 무관)
 
     // 먹었어요 버튼:
-    //  - 체크 약: 오늘 먹으면 '오늘 드셨어요!'로 바뀌고 비활성화(별개 스타일)
+    //  - 체크 약: 오늘 먹었으면 '오늘 드셨어요!', 자정을 넘겼어도 24시간 전이면 비활성화
     //  - 간격 약: 남은 시간(카운트다운) 표시 중엔 비활성화, 복용 가능해지면 활성화
     var logBtn;
     if (isCheck && takenB) {
       logBtn = '<button class="pill-btn compact done" disabled>' + ICON.check + '오늘 드셨어요!</button>';
-    } else if (ivWaiting) {
+    } else if (ivWaiting || (cr && cr.active)) {
       logBtn = '<button class="pill-btn compact" disabled>' + ICON.pillPlus + '먹었어요</button>';
     } else {
       logBtn = '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>';
@@ -827,8 +842,10 @@
       var todayLast = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
-      statusLine = todayLast ? '오늘 ' + esc(fmtTimeKoMin(todayLast.ts)) + ' 복용' : '오늘 아직 안 드셨어요';
-      var cr = computeCheckRing(med); // 오늘 먹었으면 24시간 소진 파이 링, 아니면 빈 링('복용 전')
+      if (todayLast) statusLine = '오늘 ' + esc(fmtTimeKoMin(todayLast.ts)) + ' 복용';
+      else if (cr.active) statusLine = '<span class="hl">' + esc(fmtWhenKo(cr.nextAt)) + '</span> 이후 복용 가능';
+      else statusLine = '오늘 아직 안 드셨어요';
+      // 24시간 소진 파이 링(자정을 넘겨도 계속), 24시간 지났으면 빈 링('복용 전')
       ringHtml = cr.active ? checkRingHtml(med, cr, 'sm', 'crc-' + med.id) : emptyCheckRingHtml('sm');
     } else {
       var rv = buildIntervalRing(med, 'sm');
@@ -981,15 +998,17 @@
       var todayLastD = todays.length
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
+      var crD = computeCheckRing(med); // '마지막 복용 + 24시간' 기준 (자정과 무관)
       var checkBtn = todayLastD
         ? '<button class="pill-btn check-log-full done" disabled>' + ICON.check + '오늘 드셨어요!</button>'
-        : '<button class="pill-btn check-log-full" id="detail-log">' + ICON.pillPlus + '먹었어요</button>';
-      var crD = computeCheckRing(med); // 오늘 먹었으면 대형 파이 링, 아니면 빈 링('복용 전')
+        : (crD.active
+            ? '<button class="pill-btn check-log-full" disabled>' + ICON.pillPlus + '먹었어요</button>'
+            : '<button class="pill-btn check-log-full" id="detail-log">' + ICON.pillPlus + '먹었어요</button>');
       var heroD = crD.active
         ? '<div class="hero-ring pie">' + pieRingSvg(crD.frac,
             '<div class="hero-center"><div class="hero-label">다음 복용까지</div>' +
             '<div class="hero-big" id="chero-count">' + fmtHM(crD.remainMs) + '</div>' +
-            '<div class="hero-sub">' + esc(fmtTimeKoMin(crD.last.ts + DAY_MS)) + ' 즈음</div></div>') +
+            '<div class="hero-sub">' + esc(fmtWhenKo(crD.nextAt)) + ' 예정</div></div>') +
           '</div>'
         : '<div class="hero-ring pie">' + pieRingSvg(0,
             '<div class="hero-center"><div class="hero-label">복용 전</div>' +
@@ -1181,13 +1200,18 @@
         }, 1000);
       }
     } else if (isCheck && !state.doseAdd && !state.timeEdit) {
-      // 체크 약 24시간 파이 링 카운트다운 매초 갱신
+      // 체크 약 24시간 파이 링 카운트다운 매초 갱신 (자정을 넘겨도 이어짐)
+      var detailDay = todayKey();
       tickTimer = setInterval(function () {
         if (state.screen !== 'medDetail') { clearInterval(tickTimer); return; }
+        if (todayKey() !== detailDay) { renderMedDetail(); return; } // 날짜 바뀜 → 집계·버튼 갱신
         var crk = computeCheckRing(med);
         var el = document.getElementById('chero-count');
-        if (!crk.active || !el) return;
-        el.textContent = fmtHM(crk.remainMs);
+        if (!crk.active) {
+          if (el) renderMedDetail(); // 24시간 경과 → 복용 가능 상태로 전환
+          return;
+        }
+        if (el) el.textContent = fmtHM(crk.remainMs);
       }, 1000);
     }
   }
