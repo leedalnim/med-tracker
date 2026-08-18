@@ -1320,7 +1320,8 @@
       else if (fertileSet[k]) cls += ' fertile';
       if (k === state.selKey) cls += ' sel';
       html += '<button class="' + cls + '" data-day="' + k + '">' + day +
-        (doseCount[k] ? '<span class="dd"></span>' : '') + '</button>';
+        (doseCount[k] ? '<span class="cal-cnt">' + (doseCount[k] > 9 ? '9+' : doseCount[k]) + '</span>' : '') +
+        '</button>';
     }
     html += '</div>';
     var hasSpotting = Object.keys(spottingSet).length > 0;

@@ -744,13 +744,20 @@ input, select {
 .ovul-row b { color: var(--text); font-weight: 800; }
 .ovul-row .ovul-dd { color: var(--ovul); font-weight: 800; margin-left: auto; }
 .ovul-note { font-size: 11px; color: var(--text-dim); margin-top: 10px; line-height: 1.5; }
-.cal-day .dd {
+/* 달력 날짜 우상단 복용 개수 배지 (10개 이상은 9+) */
+.cal-day .cal-cnt {
   position: absolute;
-  bottom: 15%;
-  width: 4px; height: 4px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.7;
+  top: 1px; right: 1px;
+  min-width: 15px; height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--btn);
+  color: var(--btn-text);
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--card);
 }
 
 /* 날짜 상세 패널 */
