@@ -747,7 +747,7 @@ input, select {
 /* 달력 날짜 우상단 복용 개수 배지 (10개 이상은 9+) */
 .cal-day .cal-cnt {
   position: absolute;
-  top: 1px; right: 1px;
+  top: -4px; right: -4px;
   min-width: 15px; height: 15px;
   padding: 0 4px;
   border-radius: 999px;
