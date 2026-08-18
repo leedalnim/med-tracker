@@ -519,12 +519,22 @@
       // 자정을 넘기면 '오늘 N회' 집계·버튼 상태가 바뀌므로 한 번 전체 갱신
       if (todayKey() !== renderedDay) { renderTrackerHome(); return; }
       var needFull = false;
+      // 유예 시간에 들어가 버튼이 활성화돼야 하는데 아직 비활성이면 전체 갱신
+      function graceOpened(m, allowed) {
+        if (!allowed) return false;
+        var card = document.querySelector('[data-med="' + m.id + '"]');
+        if (!card) return false;
+        var btn = card.querySelector('button.pill-btn');
+        return !!btn && btn.disabled && !btn.classList.contains('done');
+      }
       getMeds().forEach(function (m) {
         if (m.type === 'check') {
           var crk = computeCheckRing(m);
           var cel = document.getElementById('crc-' + m.id);
-          if (crk.active) { if (cel) cel.textContent = fmtHM(crk.remainMs); else needFull = true; }
-          else if (cel) needFull = true; // 24시간 지남/날짜 바뀜 → 링 제거 위해 전체 갱신
+          if (crk.active) {
+            if (cel) cel.textContent = fmtHM(crk.remainMs); else needFull = true;
+            if (graceOpened(m, crk.canLog)) needFull = true;
+          } else if (cel) needFull = true; // 24시간 지남/날짜 바뀜 → 링 제거 위해 전체 갱신
           return;
         }
         var cs = computeInterval(m);
@@ -532,6 +542,7 @@
         if (!cs.ready && !cs.reached) {
           if (el) el.textContent = fmtCountdown(cs.remainMs);
           else needFull = true;       // 새로 대기 상태가 됨
+          if (graceOpened(m, cs.nearReady)) needFull = true;
         } else if (el) {
           needFull = true;            // 복용 가능/최대로 전환됨
         }
@@ -627,6 +638,8 @@
     var dashoffset = reached ? 0 : (ready ? 0 : C * (1 - frac));
     return {
       last: last, reached: reached, ready: ready, remainMs: remainMs,
+      // 복용 시각 직전 몇 분은 미리 눌러 기록할 수 있게 허용 (정각까지 기다리지 않도록)
+      nearReady: !ready && remainMs <= GRACE_MS,
       intervalMs: intervalMs, C: C, dashoffset: dashoffset,
       ringCls: (reached || ready) ? ' ready' : ''
     };
@@ -651,6 +664,8 @@
   }
 
   var DAY_MS = 24 * 3600 * 1000;
+  // 복용 예정 시각 직전 유예 — 이 시간 안에 들면 '먹었어요'를 미리 누를 수 있음
+  var GRACE_MS = 3 * 60 * 1000;
   function fmtHM(ms) { // 남은 시간 H:MM (24시간 스케일용, 초 없음)
     var t = Math.max(0, ms);
     var h = Math.floor(t / 3600000);
@@ -668,6 +683,7 @@
     return {
       active: true, last: last, remainMs: remainMs,
       nextAt: last.ts + DAY_MS,
+      canLog: remainMs <= GRACE_MS, // 예정 시각 직전이면 미리 기록 허용
       frac: Math.max(0, Math.min(1, remainMs / DAY_MS))
     };
   }
@@ -748,7 +764,9 @@
     } else {
       centerCls = ''; innerTime = esc(fmtCountdown(s.remainMs)); innerLabel = '남음';
       innerId = ' id="rc-' + esc(med.id) + '"';
-      statusLine = '<span class="hl">' + esc(fmtTimeKoMin(s.last.ts + s.intervalMs)) + '</span> 이후 복용 가능';
+      statusLine = s.nearReady
+        ? '<span class="hl">곧 복용 시간</span> · 지금 기록할 수 있어요'
+        : '<span class="hl">' + esc(fmtWhenKo(s.last.ts + s.intervalMs)) + '</span> 이후 복용 가능';
     }
     var ringCenter =
       '<div class="ring-center' + centerCls + '">' +
@@ -783,7 +801,7 @@
       subLabel = fmtTimeKoMin(s.last.ts + s.intervalMs) + ' 예정';
     }
     var frac = (s.reached || s.ready) ? 1 : Math.max(0, Math.min(1, s.remainMs / s.intervalMs));
-    var waiting = !s.reached && !s.ready; // 카운트다운 중 → 버튼 비활성화
+    var waiting = !s.reached && !s.ready && !s.nearReady; // 카운트다운 중(예정 3분 전부터는 허용)
     var heroBtn = waiting
       ? '<button class="pill-btn hero-log" disabled>' + ICON.pillPlus + '먹었어요</button>'
       : '<button class="pill-btn hero-log" id="detail-log">' + ICON.pillPlus + '먹었어요</button>';
@@ -807,8 +825,10 @@
 
     var takenB = todays.length > 0;
     var ivState = isCheck ? null : computeInterval(med);
-    var ivWaiting = ivState && !ivState.ready && !ivState.reached; // 간격 약 대기중(카운트다운)
+    // 대기중이라도 예정 시각 3분 전부터는 미리 누를 수 있게 허용
+    var ivWaiting = ivState && !ivState.ready && !ivState.reached && !ivState.nearReady;
     var cr = isCheck ? computeCheckRing(med) : null;               // 체크 약 24시간 링(자정 무관)
+    var crWaiting = cr && cr.active && !cr.canLog;
 
     // 먹었어요 버튼:
     //  - 체크 약: 오늘 먹었으면 '오늘 드셨어요!', 자정을 넘겼어도 24시간 전이면 비활성화
@@ -816,7 +836,7 @@
     var logBtn;
     if (isCheck && takenB) {
       logBtn = '<button class="pill-btn compact done" disabled>' + ICON.check + '오늘 드셨어요!</button>';
-    } else if (ivWaiting || (cr && cr.active)) {
+    } else if (ivWaiting || crWaiting) {
       logBtn = '<button class="pill-btn compact" disabled>' + ICON.pillPlus + '먹었어요</button>';
     } else {
       logBtn = '<button class="pill-btn compact" data-log="' + esc(med.id) + '">' + ICON.pillPlus + '먹었어요</button>';
@@ -843,6 +863,7 @@
         ? todays.reduce(function (a, b) { return a.ts > b.ts ? a : b; })
         : null;
       if (todayLast) statusLine = '오늘 ' + esc(fmtTimeKoMin(todayLast.ts)) + ' 복용';
+      else if (cr.active && cr.canLog) statusLine = '<span class="hl">곧 복용 시간</span> · 지금 기록할 수 있어요';
       else if (cr.active) statusLine = '<span class="hl">' + esc(fmtWhenKo(cr.nextAt)) + '</span> 이후 복용 가능';
       else statusLine = '오늘 아직 안 드셨어요';
       // 24시간 소진 파이 링(자정을 넘겨도 계속), 24시간 지났으면 빈 링('복용 전')
@@ -1001,7 +1022,7 @@
       var crD = computeCheckRing(med); // '마지막 복용 + 24시간' 기준 (자정과 무관)
       var checkBtn = todayLastD
         ? '<button class="pill-btn check-log-full done" disabled>' + ICON.check + '오늘 드셨어요!</button>'
-        : (crD.active
+        : (crD.active && !crD.canLog
             ? '<button class="pill-btn check-log-full" disabled>' + ICON.pillPlus + '먹었어요</button>'
             : '<button class="pill-btn check-log-full" id="detail-log">' + ICON.pillPlus + '먹었어요</button>');
       var heroD = crD.active
@@ -1196,6 +1217,9 @@
             renderMedDetail(); // 대기 → 복용 가능으로 전환된 순간 1회 전체 갱신
             return;
           }
+          // 유예 시간 진입 → 버튼을 활성화하기 위해 한 번 갱신
+          var hb = document.querySelector('.hero-log');
+          if (s.nearReady && hb && hb.disabled) { renderMedDetail(); return; }
           el.textContent = fmtCountdown(s.remainMs);
         }, 1000);
       }
@@ -1211,6 +1235,9 @@
           if (el) renderMedDetail(); // 24시간 경과 → 복용 가능 상태로 전환
           return;
         }
+        // 유예 시간 진입 → 버튼 활성화를 위해 한 번 갱신
+        var cb = document.querySelector('.check-log-full');
+        if (crk.canLog && cb && cb.disabled && !cb.classList.contains('done')) { renderMedDetail(); return; }
         if (el) el.textContent = fmtHM(crk.remainMs);
       }, 1000);
     }
