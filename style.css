@@ -11,12 +11,11 @@
   --btn: #111114;
   --btn-text: #FFFFFF;
   --shadow: 0 2px 10px rgba(17, 17, 20, 0.05);
-  --nav-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.4));
+  --nav-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.22));
   --nav-solid: rgba(255, 255, 255, 0.86);
   --nav-border: rgba(255, 255, 255, 0.8);
   --nav-hi: rgba(255, 255, 255, 0.85);
   --nav-shadow: 0 12px 36px rgba(17, 17, 20, 0.18);
-  --scrim: rgba(244, 244, 245, 0.38);
   --ovul: #6D6AA6;
   --ovul-soft: rgba(109, 106, 166, 0.14);
   --spot: #B8791F;
@@ -38,12 +37,11 @@
   --btn: #F4F4F5;
   --btn-text: #111114;
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-  --nav-bg: linear-gradient(180deg, rgba(58, 58, 64, 0.62), rgba(28, 28, 32, 0.44));
+  --nav-bg: linear-gradient(180deg, rgba(58, 58, 64, 0.42), rgba(28, 28, 32, 0.28));
   --nav-solid: rgba(30, 30, 34, 0.9);
   --nav-border: rgba(255, 255, 255, 0.16);
   --nav-hi: rgba(255, 255, 255, 0.18);
   --nav-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
-  --scrim: rgba(14, 14, 16, 0.38);
   --ovul: #A6A2E0;
   --ovul-soft: rgba(166, 162, 224, 0.18);
   --spot: #D8A45E;
@@ -63,13 +61,12 @@
     --btn: #F4F4F5;
     --btn-text: #111114;
     --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    --nav-bg: linear-gradient(180deg, rgba(58, 58, 64, 0.62), rgba(28, 28, 32, 0.44));
+    --nav-bg: linear-gradient(180deg, rgba(58, 58, 64, 0.42), rgba(28, 28, 32, 0.28));
     --nav-solid: rgba(30, 30, 34, 0.9);
     --nav-border: rgba(255, 255, 255, 0.16);
     --nav-hi: rgba(255, 255, 255, 0.18);
     --nav-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
-    --scrim: rgba(14, 14, 16, 0.38);
-    --ovul: #A6A2E0;
+      --ovul: #A6A2E0;
     --ovul-soft: rgba(166, 162, 224, 0.18);
   }
 }
@@ -1051,36 +1048,6 @@ input, select {
   color: var(--text-dim);
   margin: 8px 4px 0;
   line-height: 1.6;
-}
-
-/* 하단 내비 뒤 배경 블러 — 아래로 갈수록 강해지는 다층 블러(글자가 실제로 뭉개짐).
-   mask + backdrop-filter 조합은 iOS 사파리에서 불안정해서, 얇은 층을 겹쳐 점진적으로 흐리게 만든다. */
-.nav-scrim {
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  height: calc(104px + env(safe-area-inset-bottom));
-  pointer-events: none;
-  z-index: 9;
-}
-.nav-scrim i {
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  display: block;
-}
-.nav-scrim .b1 { top: 0;   -webkit-backdrop-filter: blur(2px);  backdrop-filter: blur(2px); }
-.nav-scrim .b2 { top: 20%; -webkit-backdrop-filter: blur(4px);  backdrop-filter: blur(4px); }
-.nav-scrim .b3 { top: 40%; -webkit-backdrop-filter: blur(8px);  backdrop-filter: blur(8px); }
-.nav-scrim .b4 { top: 60%; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-.nav-scrim .b5 { top: 78%; -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); }
-/* 옅은 색 덮개로 층 경계를 부드럽게 (완전히 가리지는 않아 뭉개진 글자가 비쳐 보임) */
-.nav-scrim::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: linear-gradient(to top, var(--scrim), transparent 85%);
-}
-/* backdrop-filter 미지원 시엔 단색 그라데이션으로 가림 */
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .nav-scrim::after { background: linear-gradient(to top, var(--bg) 30%, transparent 100%); }
 }
 
 /* ===== 하단 내비게이션 (iOS 글라스모피즘) ===== */
