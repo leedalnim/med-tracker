@@ -2097,8 +2097,10 @@
       return '<button data-nav="' + key + '" class="' + (active === key ? 'active' : '') + '">' +
         ico + label + '</button>';
     }
-    // 내비 뒤로 지나가는 내용이 비치지 않도록 하단 전체에 블러 층을 깐다
-    return '<div class="nav-scrim" aria-hidden="true"></div>' +
+    // 내비 뒤로 지나가는 내용이 비치지 않도록 하단에 다층 블러를 깐다(아래로 갈수록 강해짐)
+    return '<div class="nav-scrim" aria-hidden="true">' +
+        '<i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i>' +
+      '</div>' +
       '<nav class="bottom-nav">' +
       item('home', ICON.home, '홈') +
       item('calendar', ICON.cal, '달력') +

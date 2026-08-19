@@ -16,6 +16,7 @@
   --nav-border: rgba(255, 255, 255, 0.8);
   --nav-hi: rgba(255, 255, 255, 0.85);
   --nav-shadow: 0 12px 36px rgba(17, 17, 20, 0.18);
+  --scrim: rgba(244, 244, 245, 0.38);
   --ovul: #6D6AA6;
   --ovul-soft: rgba(109, 106, 166, 0.14);
   --spot: #B8791F;
@@ -42,6 +43,7 @@
   --nav-border: rgba(255, 255, 255, 0.16);
   --nav-hi: rgba(255, 255, 255, 0.18);
   --nav-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(14, 14, 16, 0.38);
   --ovul: #A6A2E0;
   --ovul-soft: rgba(166, 162, 224, 0.18);
   --spot: #D8A45E;
@@ -66,6 +68,7 @@
     --nav-border: rgba(255, 255, 255, 0.16);
     --nav-hi: rgba(255, 255, 255, 0.18);
     --nav-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+    --scrim: rgba(14, 14, 16, 0.38);
     --ovul: #A6A2E0;
     --ovul-soft: rgba(166, 162, 224, 0.18);
   }
@@ -1050,19 +1053,34 @@ input, select {
   line-height: 1.6;
 }
 
-/* 하단 내비 뒤 배경 블러 층 — 스크롤되는 내용이 내비 좌우로 비치지 않도록 */
+/* 하단 내비 뒤 배경 블러 — 아래로 갈수록 강해지는 다층 블러(글자가 실제로 뭉개짐).
+   mask + backdrop-filter 조합은 iOS 사파리에서 불안정해서, 얇은 층을 겹쳐 점진적으로 흐리게 만든다. */
 .nav-scrim {
   position: fixed;
   left: 0; right: 0; bottom: 0;
-  height: calc(96px + env(safe-area-inset-bottom));
+  height: calc(104px + env(safe-area-inset-bottom));
   pointer-events: none;
   z-index: 9;
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  background: linear-gradient(to top, var(--bg) 20%, transparent 100%);
-  /* 위쪽으로 갈수록 블러가 자연스럽게 사라지도록 마스크 */
-  -webkit-mask-image: linear-gradient(to top, #000 45%, transparent 100%);
-  mask-image: linear-gradient(to top, #000 45%, transparent 100%);
+}
+.nav-scrim i {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  display: block;
+}
+.nav-scrim .b1 { top: 0;   -webkit-backdrop-filter: blur(2px);  backdrop-filter: blur(2px); }
+.nav-scrim .b2 { top: 20%; -webkit-backdrop-filter: blur(4px);  backdrop-filter: blur(4px); }
+.nav-scrim .b3 { top: 40%; -webkit-backdrop-filter: blur(8px);  backdrop-filter: blur(8px); }
+.nav-scrim .b4 { top: 60%; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.nav-scrim .b5 { top: 78%; -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); }
+/* 옅은 색 덮개로 층 경계를 부드럽게 (완전히 가리지는 않아 뭉개진 글자가 비쳐 보임) */
+.nav-scrim::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, var(--scrim), transparent 85%);
+}
+/* backdrop-filter 미지원 시엔 단색 그라데이션으로 가림 */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .nav-scrim::after { background: linear-gradient(to top, var(--bg) 30%, transparent 100%); }
 }
 
 /* ===== 하단 내비게이션 (iOS 글라스모피즘) ===== */
