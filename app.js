@@ -2097,7 +2097,9 @@
       return '<button data-nav="' + key + '" class="' + (active === key ? 'active' : '') + '">' +
         ico + label + '</button>';
     }
-    return '<nav class="bottom-nav">' +
+    // 내비 뒤로 지나가는 내용이 비치지 않도록 하단 전체에 블러 층을 깐다
+    return '<div class="nav-scrim" aria-hidden="true"></div>' +
+      '<nav class="bottom-nav">' +
       item('home', ICON.home, '홈') +
       item('calendar', ICON.cal, '달력') +
       item('settings', ICON.gear, '설정') +

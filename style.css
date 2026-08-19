@@ -1050,6 +1050,21 @@ input, select {
   line-height: 1.6;
 }
 
+/* 하단 내비 뒤 배경 블러 층 — 스크롤되는 내용이 내비 좌우로 비치지 않도록 */
+.nav-scrim {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: calc(96px + env(safe-area-inset-bottom));
+  pointer-events: none;
+  z-index: 9;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  background: linear-gradient(to top, var(--bg) 20%, transparent 100%);
+  /* 위쪽으로 갈수록 블러가 자연스럽게 사라지도록 마스크 */
+  -webkit-mask-image: linear-gradient(to top, #000 45%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 45%, transparent 100%);
+}
+
 /* ===== 하단 내비게이션 (iOS 글라스모피즘) ===== */
 .bottom-nav {
   position: fixed;
