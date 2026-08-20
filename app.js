@@ -2,6 +2,9 @@
 (function () {
   'use strict';
 
+  // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
+  var APP_VERSION = 'v93';
+
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
     document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
@@ -2006,7 +2009,8 @@
     '</div>';
 
     html +=
-      '<p class="settings-note">이 앱은 등록한 간격·최대치·날짜로 계산만 해요. 복약 지도는 의사·약사와 상담하세요.</p>';
+      '<p class="settings-note">이 앱은 등록한 간격·최대치·날짜로 계산만 해요. 복약 지도는 의사·약사와 상담하세요.<br>' +
+      '<span class="app-ver">버전 ' + APP_VERSION + '</span></p>';
 
     html += bottomNavHtml('settings');
     app.innerHTML = html;
