@@ -24,10 +24,11 @@
     set: function (key, val) {
       memStore[key] = val;
       try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* 메모리만 사용 */ }
-      // 데이터가 바뀌면 클라우드 백업 예약 (클라우드 자체 설정값 변경은 제외)
-      if (typeof scheduleCloudPush === 'function' &&
-          key !== 'mt.cloudKey' && key !== 'mt.cloudOn' && key !== 'mt.cloudAt') {
-        scheduleCloudPush();
+      // 데이터가 바뀌면 변경 시각을 남기고 클라우드 백업 예약 (클라우드 자체 설정값은 제외)
+      if (key !== 'mt.cloudKey' && key !== 'mt.cloudOn' && key !== 'mt.cloudAt' && key !== 'mt.dataAt') {
+        try { localStorage.setItem('mt.dataAt', JSON.stringify(Date.now())); } catch (e) {}
+        memStore['mt.dataAt'] = Date.now();
+        if (typeof scheduleCloudPush === 'function') scheduleCloudPush();
       }
     },
     has: function (key) {
@@ -46,7 +47,8 @@
     migr: 'mt.migr',          // 데이터 마이그레이션 버전
     cloudKey: 'mt.cloudKey',  // 복구 코드(UUID) — 이 코드를 아는 기기만 내 백업에 접근
     cloudOn: 'mt.cloudOn',    // 클라우드 자동 백업 사용 여부 (새 기기는 항상 꺼짐으로 시작)
-    cloudAt: 'mt.cloudAt'     // 마지막 백업 성공 시각(ms)
+    cloudAt: 'mt.cloudAt',    // 마지막 백업 성공 시각(ms)
+    dataAt: 'mt.dataAt'       // 마지막 데이터 변경 시각(ms) — cloudAt보다 최신이면 아직 못 올린 상태
   };
 
   /* ===== 클라우드 백업 설정 =====
@@ -471,6 +473,16 @@
       pushTimer = null;
       cloudPush(cloudKey(), function () { /* 실패해도 로컬은 그대로 */ });
     }, 4000);
+  }
+  // 아직 못 올린 변경이 있는지 (오프라인이었거나 업로드 실패한 경우)
+  function cloudPending() {
+    return (storage.get(KEY.dataAt, 0) || 0) > (storage.get(KEY.cloudAt, 0) || 0);
+  }
+  // 앱을 다시 열거나 인터넷이 돌아오면 밀린 백업을 자동으로 올림
+  function cloudCatchUp() {
+    if (!cloudOn() || !cloudKey() || !cloudPending()) return;
+    if (recordCount(snapshotData()) === 0) return;
+    cloudPush(cloudKey(), function () { /* 실패하면 다음 기회에 */ });
   }
 
   function dosesForMed(medId) {
@@ -2397,10 +2409,13 @@
     });
   }
 
-  // 탭 복귀 시 화면 갱신 (자정 넘김·백그라운드 경과 반영)
+  // 탭 복귀 시 화면 갱신 (자정 넘김·백그라운드 경과 반영) + 밀린 백업 올리기
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) render();
+    if (!document.hidden) { render(); cloudCatchUp(); }
   });
+  // 인터넷이 돌아오면, 앱을 켤 때 못 올린 게 있으면 자동으로 다시 시도
+  window.addEventListener('online', cloudCatchUp);
+  setTimeout(cloudCatchUp, 2000);
 
   // 서비스워커 등록 (미리보기 등 지원 안 되는 환경은 조용히 통과)
   if ('serviceWorker' in navigator) {
