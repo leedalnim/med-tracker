@@ -669,8 +669,8 @@ input, select {
   border: 1.5px solid transparent;
 }
 .cal-day:disabled { opacity: 0; pointer-events: none; }
-.cal-day.dosed { border-color: var(--dose-ring); }
-.cal-day.today { border-color: var(--text); }
+.cal-day.dosed { border-color: var(--dose-ring); border-width: 1px; }
+.cal-day.today { border-color: var(--text); border-width: 1.5px; }
 .cal-day.period { background: var(--accent-soft); color: var(--accent); font-weight: 800; }
 .cal-day.pred { border: 1.5px dashed var(--accent); color: var(--accent); }
 .cal-day.fertile { background: var(--ovul-soft); color: var(--ovul); font-weight: 700; }
@@ -700,7 +700,7 @@ input, select {
 /* 부정출혈: 생리(코랄)와 구분되는 앰버 톤 */
 .cal-day.spotting { background: var(--spot-soft); color: var(--spot); font-weight: 800; }
 .cal-legend .lg.spotting { background: var(--spot-soft); border: 1px solid var(--spot); }
-.cal-legend .lg.dosed { background: transparent; border: 1.5px solid var(--dose-ring); }
+.cal-legend .lg.dosed { background: transparent; border: 1px solid var(--dose-ring); }
 /* 기록 카드 종류 뱃지 */
 .ep-badge { display: inline-block; vertical-align: middle; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; margin-left: 6px; letter-spacing: -0.2px; }
 .ep-badge.period { background: var(--accent-soft); color: var(--accent); }
