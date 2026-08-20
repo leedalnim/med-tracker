@@ -366,7 +366,7 @@
     }
   };
   function helpBtn(key) {
-    return '<button class="help-btn" data-help="' + key + '" aria-label="설명 보기">?</button>';
+    return '<button class="help-btn" data-help="' + key + '" aria-label="설명 보기">' + ICON.help + '</button>';
   }
   function showHelp(key) {
     var h = HELP[key];
@@ -2369,6 +2369,8 @@
     download: lucide('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>'),
     // upload (lucide) — 불러오기
     upload: lucide('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>'),
+    // info (lucide) — 도움말 버튼. 좌우 대칭이라 물음표보다 단순하고 정중앙으로 보임
+    help: lucide('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
     // arrow-up-down (lucide) — 정렬 버튼
     sort: lucide('<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>', 'btn-ico'),
     // grip-vertical (lucide) — 드래그 핸들 느낌

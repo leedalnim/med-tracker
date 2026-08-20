@@ -1060,21 +1060,17 @@ input, select {
 
 /* 도움말 '?' 버튼 + 레이어 팝업 */
 .help-btn {
-  width: 18px; height: 18px;
-  border-radius: 50%;
-  border: 1.4px solid var(--text-dim);
   color: var(--text-dim);
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-left: 6px;
+  margin-left: 5px;
   padding: 0;
   flex-shrink: 0;
+  opacity: 0.75;
 }
-.help-btn:active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.help-btn .lucide { width: 15px; height: 15px; display: block; }
+.help-btn:active { color: var(--accent); opacity: 1; }
 .help-overlay {
   position: fixed;
   inset: 0;
