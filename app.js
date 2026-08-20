@@ -338,6 +338,60 @@
       2) 새 기기는 백업 꺼짐으로 시작 → 빈 데이터가 클라우드를 덮어쓰는 사고 원천 차단.
       3) 복원은 사용자가 직접 누를 때만. 자동으로 내려받아 덮어쓰지 않음.
       4) 기록이 하나도 없으면 자동 업로드하지 않음. */
+  /* ===== 도움말 — 긴 설명은 제목 옆 '?'를 눌렀을 때만 레이어로 ===== */
+  var HELP = {
+    fav: {
+      title: '자주 찾는 약',
+      body: '홈에서 <b>약 추가</b>를 누르면 이름 목록 맨 위에 ★로 나와요.<br>' +
+            '여기에 추가해도 홈 화면에는 바로 뜨지 않아요 — 홈에 올릴 약은 홈에서 직접 추가하세요.'
+    },
+    backup: {
+      title: '데이터 백업',
+      body: '기록을 파일 하나로 저장하고 복원해요.<br><br>' +
+            '<b>내보내기</b> → \'파일에 저장\'을 고르면 백업 파일이 만들어져요.<br>' +
+            '<b>불러오기</b> → 저장해둔 파일을 고르면 그 시점으로 복원돼요.<br><br>' +
+            '이 파일에는 클라우드 <b>복구 코드</b>도 함께 저장돼요.'
+    },
+    cloud: {
+      title: '클라우드 백업',
+      body: '기록이 이 기기에만 있으면 폰을 잃어버릴 때 같이 사라져요. ' +
+            '자동 백업을 켜면 기록이 바뀔 때마다 사본이 클라우드에 저장돼요.<br><br>' +
+            '<b>복구 코드는 비밀번호와 같아요.</b> 다른 곳에 적어두시고 남에게 알려주지 마세요. ' +
+            '이 코드를 아는 경우에만 백업을 열 수 있어요.<br><br>' +
+            '새 폰에서는 <b>코드로 복원</b>에 이 코드를 넣으면 기록이 돌아와요. ' +
+            '내보내기 파일에도 코드가 함께 저장돼요.<br><br>' +
+            '저장은 항상 이 기기에 먼저 하고, 인터넷이 안 되면 백업만 건너뛰어요.'
+    }
+  };
+  function helpBtn(key) {
+    return '<button class="help-btn" data-help="' + key + '" aria-label="설명 보기">?</button>';
+  }
+  function showHelp(key) {
+    var h = HELP[key];
+    if (!h) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'help-overlay';
+    wrap.innerHTML =
+      '<div class="help-card" role="dialog" aria-modal="true">' +
+        '<h3>' + h.title + '</h3>' +
+        '<p>' + h.body + '</p>' +
+        '<button class="pill-btn" data-help-close>확인</button>' +
+      '</div>';
+    function close() { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap || e.target.hasAttribute('data-help-close')) close();
+    });
+    document.body.appendChild(wrap);
+  }
+  function bindHelp() {
+    app.querySelectorAll('[data-help]').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        showHelp(b.getAttribute('data-help'));
+      });
+    });
+  }
+
   function uuid4() {
     try {
       if (crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -1440,6 +1494,7 @@
       else if (predSet[k]) cls += ' pred';
       else if (k === ovulKey) cls += ' ovul';
       else if (fertileSet[k]) cls += ' fertile';
+      if (doseCount[k]) cls += ' dosed'; // 약 먹은 날 — 얇은 회색 테두리
       if (k === state.selKey) cls += ' sel';
       html += '<button class="' + cls + '" data-day="' + k + '">' + day +
         (doseCount[k] ? '<span class="cal-cnt">' + (doseCount[k] > 9 ? '9+' : doseCount[k]) + '</span>' : '') +
@@ -1448,13 +1503,19 @@
     html += '</div>';
     var hasSpotting = Object.keys(spottingSet).length > 0;
     var hasPeriod = Object.keys(periodSet).length > 0;
-    if (periodOn && (hasPeriod || hasSpotting || (stats && stats.avgCycle))) {
-      var legend = '<div class="cal-legend"><span><i class="lg period"></i>생리</span>';
-      if (hasSpotting) legend += '<span><i class="lg spotting"></i>부정출혈</span>';
-      if (stats && stats.avgCycle) {
-        legend += '<span><i class="lg pred"></i>예정</span>' +
-          '<span><i class="lg fertile"></i>가임기</span>' +
-          '<span><i class="lg ovul"></i>배란</span>';
+    var hasDose = Object.keys(doseCount).length > 0;
+    var showPeriodLegend = periodOn && (hasPeriod || hasSpotting || (stats && stats.avgCycle));
+    if (hasDose || showPeriodLegend) {
+      var legend = '<div class="cal-legend">';
+      if (hasDose) legend += '<span><i class="lg dosed"></i>약 먹은 날</span>';
+      if (showPeriodLegend) {
+        legend += '<span><i class="lg period"></i>생리</span>';
+        if (hasSpotting) legend += '<span><i class="lg spotting"></i>부정출혈</span>';
+        if (stats && stats.avgCycle) {
+          legend += '<span><i class="lg pred"></i>예정</span>' +
+            '<span><i class="lg fertile"></i>가임기</span>' +
+            '<span><i class="lg ovul"></i>배란</span>';
+        }
       }
       html += legend + '</div>';
     }
@@ -1864,9 +1925,8 @@
     html += '</div>';
 
     // 자주 찾는 약 = 홈에서 '약 추가'할 때 고르는 후보 목록 (여기 추가해도 홈엔 안 뜸)
-    html += '<div class="settings-group"><h2>자주 찾는 약</h2>';
+    html += '<div class="settings-group"><h2>자주 찾는 약' + helpBtn('fav') + '</h2>';
     var favs = getFavorites();
-    html += '<p class="settings-note">홈에서 약을 추가할 때 여기서 골라요. 추가해도 홈엔 바로 뜨지 않아요.</p>';
     favs.forEach(function (f) {
       html +=
         '<div class="med-row">' +
@@ -1891,7 +1951,6 @@
       '<div class="seg" id="theme-seg">' +
         segBtn('system', '시스템') + segBtn('light', '라이트') + segBtn('dark', '다크') +
       '</div>' +
-      '<p class="settings-note">시스템은 폰 설정(라이트/다크)을 따라가요.</p>' +
     '</div>';
 
     // 생리주기: 기본 꺼짐 — 여기서 켜면 달력에 기록 기능이 나타남
@@ -1902,19 +1961,17 @@
         '<span class="switch' + (isPeriodOn() ? ' on' : '') + '"></span>' +
       '</button></div>';
 
-    html += '<div class="settings-group"><h2>데이터 백업</h2>' +
+    html += '<div class="settings-group"><h2>데이터 백업' + helpBtn('backup') + '</h2>' +
       '<div class="backup-actions">' +
         '<button class="pill-btn secondary" id="export-data">' + ICON.download + '내보내기</button>' +
         '<button class="pill-btn secondary" id="import-data">' + ICON.upload + '불러오기</button>' +
       '</div>' +
       '<input type="file" id="import-file" accept="application/json,.json" hidden>' +
-      '<p class="settings-note">기록을 파일 하나로 저장/복원해요. <b>내보내기</b> → \'파일에 저장\'으로 백업, ' +
-      '<b>불러오기</b> → 저장한 파일 선택으로 복원. 기기를 바꿔도 그대로 옮겨져요.</p>' +
     '</div>';
 
     // 클라우드 백업 — 로컬이 원본, 클라우드는 사본. 새 기기는 꺼짐으로 시작.
     var cOn = cloudOn(), cKey = cloudKey(), cAt = storage.get(KEY.cloudAt, 0);
-    html += '<div class="settings-group"><h2>클라우드 백업</h2>' +
+    html += '<div class="settings-group"><h2>클라우드 백업' + helpBtn('cloud') + '</h2>' +
       '<button class="toggle-row" id="cloud-toggle">' +
         '<div><div class="m-title">자동 백업</div>' +
         '<div class="m-desc">' + (cOn
@@ -1934,21 +1991,16 @@
             '<button class="pill-btn secondary" id="cloud-restore">코드로 복원</button>' +
           '</div>') +
       '<p class="settings-status" id="cloud-status"></p>' +
-      '<p class="settings-note">기록이 이 기기에만 있으면 폰을 잃어버릴 때 같이 사라져요. ' +
-        '자동 백업을 켜면 변경될 때마다 사본이 클라우드에 저장돼요. ' +
-        '<b>복구 코드는 비밀번호와 같아요</b> — 다른 곳에 적어두시고 남에게 알려주지 마세요. ' +
-        '새 폰에서는 <b>코드로 복원</b>에 이 코드를 넣으면 기록이 돌아와요. ' +
-        '(내보내기 파일에도 코드가 함께 저장돼요)</p>' +
     '</div>';
 
     html +=
-      '<p class="settings-note">복약 기록은 이 기기에 저장되고, 자동 백업을 켠 경우에만 사본이 클라우드로 전송돼요.<br>' +
-      '이 앱은 사용자가 등록한 간격·최대치·날짜를 기준으로 계산만 해요.</p>';
+      '<p class="settings-note">이 앱은 등록한 간격·최대치·날짜로 계산만 해요. 복약 지도는 의사·약사와 상담하세요.</p>';
 
     html += bottomNavHtml('settings');
     app.innerHTML = html;
 
     bindBottomNav();
+    bindHelp();
 
     app.querySelectorAll('[data-theme-set]').forEach(function (btn) {
       btn.addEventListener('click', function () {
