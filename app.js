@@ -24,6 +24,11 @@
     set: function (key, val) {
       memStore[key] = val;
       try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* 메모리만 사용 */ }
+      // 데이터가 바뀌면 클라우드 백업 예약 (클라우드 자체 설정값 변경은 제외)
+      if (typeof scheduleCloudPush === 'function' &&
+          key !== 'mt.cloudKey' && key !== 'mt.cloudOn' && key !== 'mt.cloudAt') {
+        scheduleCloudPush();
+      }
     },
     has: function (key) {
       try { return localStorage.getItem(key) !== null; } catch (e) { return key in memStore; }
@@ -38,7 +43,18 @@
     spotting: 'mt.spotting',  // ['YYYY-MM-DD', ...] 부정출혈로 표시한 날 (예측 계산엔 미포함)
     periodOn: 'mt.periodOn',  // 생리주기 기능 사용 여부 (기본 꺼짐, 설정에서 켬)
     theme: 'mt.theme',        // 'system' | 'light' | 'dark'
-    migr: 'mt.migr'           // 데이터 마이그레이션 버전
+    migr: 'mt.migr',          // 데이터 마이그레이션 버전
+    cloudKey: 'mt.cloudKey',  // 복구 코드(UUID) — 이 코드를 아는 기기만 내 백업에 접근
+    cloudOn: 'mt.cloudOn',    // 클라우드 자동 백업 사용 여부 (새 기기는 항상 꺼짐으로 시작)
+    cloudAt: 'mt.cloudAt'     // 마지막 백업 성공 시각(ms)
+  };
+
+  /* ===== 클라우드 백업 설정 =====
+     로컬이 원본이고 클라우드는 사본. 테이블 직접 접근은 RLS로 막혀 있고,
+     복구 코드를 아는 경우에만 함수를 통해 읽고 쓸 수 있다. */
+  var CLOUD = {
+    url: 'https://wjqjebemglkitgrekzzz.supabase.co',
+    key: 'sb_publishable_oeP1ttfINWEBwByugOEfMw_-2GtROZz'
   };
 
   // 약 type: 'interval' = 간격 트래커(다음 복용 가능 계산) / 'check' = 복용 체크(먹었는지만)
@@ -242,21 +258,43 @@
     });
   }
 
-  /* ===== 데이터 백업(내보내기/불러오기) — 파일 하나로 저장·복원, 서버 없음 ===== */
+  /* ===== 데이터 백업(내보내기/불러오기) — 파일 하나로 저장·복원 ===== */
+  // 현재 데이터 전체를 한 덩어리로 (파일 내보내기·클라우드 백업 공용)
+  function snapshotData() {
+    return {
+      meds: storage.get(KEY.meds, []),
+      favorites: storage.get(KEY.favorites, []),
+      doses: storage.get(KEY.doses, []),
+      period: storage.get(KEY.period, []),
+      spotting: storage.get(KEY.spotting, []),
+      periodOn: storage.get(KEY.periodOn, false),
+      theme: getTheme()
+    };
+  }
+  // 스냅샷을 실제 저장소에 반영 (파일 불러오기·클라우드 복원 공용)
+  function applySnapshot(data) {
+    if (!data || !Array.isArray(data.meds)) throw new Error('형식이 올바르지 않아요');
+    storage.set(KEY.meds, data.meds || []);
+    if (Array.isArray(data.favorites)) storage.set(KEY.favorites, data.favorites);
+    storage.set(KEY.doses, Array.isArray(data.doses) ? data.doses : []);
+    storage.set(KEY.period, Array.isArray(data.period) ? data.period : []);
+    storage.set(KEY.spotting, Array.isArray(data.spotting) ? data.spotting : []);
+    storage.set(KEY.periodOn, !!data.periodOn);
+    if (data.theme) storage.set(KEY.theme, data.theme);
+  }
+  function recordCount(data) {
+    if (!data) return 0;
+    return (data.meds || []).length + (data.doses || []).length +
+      (data.period || []).length + (data.spotting || []).length;
+  }
+
   function exportData() {
     var payload = {
       app: 'med-tracker',
       version: 1,
       exportedAt: new Date().toISOString(),
-      data: {
-        meds: storage.get(KEY.meds, []),
-        favorites: storage.get(KEY.favorites, []),
-        doses: storage.get(KEY.doses, []),
-        period: storage.get(KEY.period, []),
-        spotting: storage.get(KEY.spotting, []),
-        periodOn: storage.get(KEY.periodOn, false),
-        theme: getTheme()
-      }
+      cloudKey: storage.get(KEY.cloudKey, null), // 복구 코드도 함께 보관 (코드 분실 대비)
+      data: snapshotData()
     };
     var json = JSON.stringify(payload, null, 2);
     var name = '복약백업.json'; // 고정 이름 — 같은 위치에 저장하면 항상 최신 하나로 덮어씀
@@ -282,19 +320,103 @@
       try {
         var obj = JSON.parse(reader.result);
         var data = obj && obj.data ? obj.data : obj;
-        if (!data || !Array.isArray(data.meds)) throw new Error('형식이 올바르지 않아요');
-        storage.set(KEY.meds, data.meds || []);
-        if (Array.isArray(data.favorites)) storage.set(KEY.favorites, data.favorites);
-        storage.set(KEY.doses, Array.isArray(data.doses) ? data.doses : []);
-        storage.set(KEY.period, Array.isArray(data.period) ? data.period : []);
-        storage.set(KEY.spotting, Array.isArray(data.spotting) ? data.spotting : []);
-        storage.set(KEY.periodOn, !!data.periodOn);
-        if (data.theme) storage.set(KEY.theme, data.theme);
+        applySnapshot(data);
+        // 백업 파일에 복구 코드가 있으면 같이 복원 (다른 폰에서 이어 쓰기)
+        if (obj && obj.cloudKey && !storage.get(KEY.cloudKey, null)) {
+          storage.set(KEY.cloudKey, obj.cloudKey);
+        }
         done(true, '');
       } catch (e) { done(false, e.message || '불러오기 실패'); }
     };
     reader.onerror = function () { done(false, '파일을 읽지 못했어요'); };
     reader.readAsText(file);
+  }
+
+  /* ===== 클라우드 백업 =====
+     안전 원칙
+      1) 저장은 항상 로컬이 먼저. 업로드는 뒤에서 조용히, 실패해도 로컬은 그대로.
+      2) 새 기기는 백업 꺼짐으로 시작 → 빈 데이터가 클라우드를 덮어쓰는 사고 원천 차단.
+      3) 복원은 사용자가 직접 누를 때만. 자동으로 내려받아 덮어쓰지 않음.
+      4) 기록이 하나도 없으면 자동 업로드하지 않음. */
+  function uuid4() {
+    try {
+      if (crypto && crypto.randomUUID) return crypto.randomUUID();
+      var b = new Uint8Array(16);
+      crypto.getRandomValues(b);
+      b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+      var h = [].map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+      return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+    } catch (e) {
+      // crypto를 못 쓰는 환경 폴백 (품질은 낮지만 동작은 함)
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+    }
+  }
+  function cloudKey() { return storage.get(KEY.cloudKey, null); }
+  function ensureCloudKey() {
+    var k = cloudKey();
+    if (!k) { k = uuid4(); storage.set(KEY.cloudKey, k); }
+    return k;
+  }
+  function cloudOn() { return !!storage.get(KEY.cloudOn, false); }
+  var CLOUD_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+  // Supabase RPC 호출 — 라이브러리 없이 fetch만 사용(오프라인에서도 앱이 멀쩡하도록)
+  function cloudRpc(fn, body, done) {
+    if (typeof fetch !== 'function') { done(false, '이 브라우저에선 사용할 수 없어요'); return; }
+    var ctl = null, timer = null;
+    try { ctl = new AbortController(); timer = setTimeout(function () { ctl.abort(); }, 15000); } catch (e) {}
+    fetch(CLOUD.url + '/rest/v1/rpc/' + fn, {
+      method: 'POST',
+      headers: {
+        'apikey': CLOUD.key,
+        'Authorization': 'Bearer ' + CLOUD.key,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body),
+      signal: ctl ? ctl.signal : undefined
+    }).then(function (res) {
+      if (timer) clearTimeout(timer);
+      return res.text().then(function (t) {
+        if (!res.ok) {
+          var msg = t;
+          try { msg = (JSON.parse(t).message) || t; } catch (e2) {}
+          done(false, 'HTTP ' + res.status + ' · ' + (msg || '요청 실패'));
+          return;
+        }
+        var val = null;
+        try { val = t ? JSON.parse(t) : null; } catch (e3) { val = t; }
+        done(true, val);
+      });
+    }).catch(function (err) {
+      if (timer) clearTimeout(timer);
+      done(false, (err && err.name === 'AbortError') ? '시간 초과' : '네트워크에 연결할 수 없어요');
+    });
+  }
+
+  function cloudPush(key, done) {
+    var data = snapshotData();
+    cloudRpc('med_backup_put', { p_key: key, p_data: { app: 'med-tracker', version: 1, data: data } },
+      function (ok, res) {
+        if (ok) storage.set(KEY.cloudAt, Date.now());
+        done(ok, res);
+      });
+  }
+  function cloudFetch(key, done) { cloudRpc('med_backup_get', { p_key: key }, done); }
+  function cloudInfo(key, done) { cloudRpc('med_backup_info', { p_key: key }, done); }
+
+  // 데이터가 바뀌면 잠시 뒤 한 번만 업로드 (연속 저장 시 묶어서 처리)
+  var pushTimer = null;
+  function scheduleCloudPush() {
+    if (!cloudOn() || !cloudKey()) return;
+    if (recordCount(snapshotData()) === 0) return; // 빈 상태는 절대 자동 업로드하지 않음
+    if (pushTimer) clearTimeout(pushTimer);
+    pushTimer = setTimeout(function () {
+      pushTimer = null;
+      cloudPush(cloudKey(), function () { /* 실패해도 로컬은 그대로 */ });
+    }, 4000);
   }
 
   function dosesForMed(medId) {
@@ -1790,8 +1912,37 @@
       '<b>불러오기</b> → 저장한 파일 선택으로 복원. 기기를 바꿔도 그대로 옮겨져요.</p>' +
     '</div>';
 
+    // 클라우드 백업 — 로컬이 원본, 클라우드는 사본. 새 기기는 꺼짐으로 시작.
+    var cOn = cloudOn(), cKey = cloudKey(), cAt = storage.get(KEY.cloudAt, 0);
+    html += '<div class="settings-group"><h2>클라우드 백업</h2>' +
+      '<button class="toggle-row" id="cloud-toggle">' +
+        '<div><div class="m-title">자동 백업</div>' +
+        '<div class="m-desc">' + (cOn
+          ? (cAt ? '마지막 백업 ' + esc(fmtDateLong(cAt)) + ' ' + esc(fmtTimeKoMin(cAt)) : '켜짐 · 아직 백업 전')
+          : '기록이 이 기기에만 있어요') + '</div></div>' +
+        '<span class="switch' + (cOn ? ' on' : '') + '"></span>' +
+      '</button>' +
+      (cOn && cKey
+        ? '<div class="code-box"><div class="code-label">복구 코드</div>' +
+            '<div class="code-val" id="cloud-code">' + esc(cKey) + '</div>' +
+            '<button class="text-btn" id="cloud-copy">복사</button></div>' +
+          '<div class="backup-actions">' +
+            '<button class="pill-btn secondary" id="cloud-push">지금 백업</button>' +
+            '<button class="pill-btn secondary" id="cloud-restore">코드로 복원</button>' +
+          '</div>'
+        : '<div class="backup-actions">' +
+            '<button class="pill-btn secondary" id="cloud-restore">코드로 복원</button>' +
+          '</div>') +
+      '<p class="settings-status" id="cloud-status"></p>' +
+      '<p class="settings-note">기록이 이 기기에만 있으면 폰을 잃어버릴 때 같이 사라져요. ' +
+        '자동 백업을 켜면 변경될 때마다 사본이 클라우드에 저장돼요. ' +
+        '<b>복구 코드는 비밀번호와 같아요</b> — 다른 곳에 적어두시고 남에게 알려주지 마세요. ' +
+        '새 폰에서는 <b>코드로 복원</b>에 이 코드를 넣으면 기록이 돌아와요. ' +
+        '(내보내기 파일에도 코드가 함께 저장돼요)</p>' +
+    '</div>';
+
     html +=
-      '<p class="settings-note">모든 데이터는 이 기기의 브라우저에만 저장돼요. 서버로 전송되지 않아요.<br>' +
+      '<p class="settings-note">복약 기록은 이 기기에 저장되고, 자동 백업을 켠 경우에만 사본이 클라우드로 전송돼요.<br>' +
       '이 앱은 사용자가 등록한 간격·최대치·날짜를 기준으로 계산만 해요.</p>';
 
     html += bottomNavHtml('settings');
@@ -1826,6 +1977,77 @@
         else { window.alert('불러오기 실패: ' + msg); }
       });
     });
+    /* ===== 클라우드 백업 조작 ===== */
+    var cStatus = document.getElementById('cloud-status');
+    function say(msg, kind) {
+      if (!cStatus) return;
+      cStatus.textContent = msg || '';
+      cStatus.className = 'settings-status' + (kind ? ' ' + kind : '');
+    }
+    var cToggle = document.getElementById('cloud-toggle');
+    if (cToggle) cToggle.addEventListener('click', function () {
+      if (cloudOn()) {
+        storage.set(KEY.cloudOn, false);
+        renderSettings();
+        return;
+      }
+      // 켜기: 코드 만들고 즉시 한 번 올려서 실제로 되는지 확인
+      var k = ensureCloudKey();
+      say('백업하는 중…');
+      cToggle.disabled = true;
+      cloudPush(k, function (ok, res) {
+        cToggle.disabled = false;
+        if (!ok) { say('백업 실패: ' + res, 'err'); return; }
+        storage.set(KEY.cloudOn, true);
+        renderSettings();
+        var el = document.getElementById('cloud-status');
+        if (el) { el.textContent = '백업 완료! 복구 코드를 꼭 따로 적어두세요.'; el.className = 'settings-status ok'; }
+      });
+    });
+    var cPush = document.getElementById('cloud-push');
+    if (cPush) cPush.addEventListener('click', function () {
+      var k = cloudKey(); if (!k) return;
+      say('백업하는 중…'); cPush.disabled = true;
+      cloudPush(k, function (ok, res) {
+        cPush.disabled = false;
+        if (ok) { say('백업 완료 · ' + fmtTimeKoMin(Date.now()), 'ok'); }
+        else say('백업 실패: ' + res, 'err');
+      });
+    });
+    var cCopy = document.getElementById('cloud-copy');
+    if (cCopy) cCopy.addEventListener('click', function () {
+      var code = cloudKey() || '';
+      var okMsg = function () { say('복구 코드를 복사했어요. 안전한 곳에 붙여넣어 두세요.', 'ok'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(okMsg, function () { window.prompt('복구 코드', code); });
+      } else { window.prompt('복구 코드', code); }
+    });
+    var cRestore = document.getElementById('cloud-restore');
+    if (cRestore) cRestore.addEventListener('click', function () {
+      var input = window.prompt('복구 코드를 붙여넣어 주세요.\n(예전 폰의 설정 화면 또는 내보내기 파일에 있어요)', '');
+      if (input === null) return;
+      var k = String(input).trim();
+      if (!CLOUD_RE.test(k)) { say('코드 형식이 올바르지 않아요.', 'err'); return; }
+      say('불러오는 중…'); cRestore.disabled = true;
+      cloudFetch(k, function (ok, res) {
+        cRestore.disabled = false;
+        if (!ok) { say('복원 실패: ' + res, 'err'); return; }
+        var payload = res && res.data ? res.data : res;
+        if (!payload || !Array.isArray(payload.meds)) { say('그 코드로 저장된 백업이 없어요.', 'err'); return; }
+        var n = recordCount(payload);
+        if (!window.confirm('클라우드 기록 ' + n + '건을 불러와 현재 기록을 덮어써요.\n계속할까요?')) { say(''); return; }
+        try {
+          applySnapshot(payload);
+          storage.set(KEY.cloudKey, k);
+          storage.set(KEY.cloudOn, true);
+          storage.set(KEY.cloudAt, Date.now());
+          applyTheme();
+          window.alert('복원 완료! (' + n + '건)');
+          go('home');
+        } catch (e) { say('복원 실패: ' + (e.message || '알 수 없는 오류'), 'err'); }
+      });
+    });
+
     document.getElementById('add-fav').addEventListener('click', function () {
       go('medForm', { editMedId: null, favMode: true, returnTo: 'settings' });
     });
