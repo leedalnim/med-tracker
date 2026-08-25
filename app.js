@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v94';
+  var APP_VERSION = 'v95';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -862,7 +862,7 @@
   // 복용 예정 시각 직전 유예 — 이 시간 안에 들면 '먹었어요'를 미리 누를 수 있음
   var GRACE_MS = 3 * 60 * 1000;
   // 복용 내역을 한 번에 보여주는 건수 ('더 보기'로 이만큼씩 추가)
-  var HIST_PAGE = 15;
+  var HIST_PAGE = 10;
   function fmtHM(ms) { // 남은 시간 H:MM (24시간 스케일용, 초 없음)
     var t = Math.max(0, ms);
     var h = Math.floor(t / 3600000);
@@ -1269,10 +1269,10 @@
     var page = shown.slice(0, limit);
     var rest = shown.length - page.length;
 
-    var summaryHtml =
-      '<p class="hist-sum">이번 달 <b>' + (monthCount[thisMk] || 0) + '회</b>' +
-        ' · 지난달 <b>' + (monthCount[prevMk] || 0) + '회</b>' +
-        ' · 전체 <b>' + doses.length + '회</b></p>';
+    // 제목 옆에 붙일 요약 (월별 횟수는 아래 칩이 보여주므로 여기선 짧게)
+    var titleSum = doses.length
+      ? '<span class="hist-total">이번 달 ' + (monthCount[thisMk] || 0) + '회 · 전체 ' + doses.length + '회</span>'
+      : '';
 
     var chipsHtml = '';
     if (doses.length) {
@@ -1357,10 +1357,10 @@
       '</div>' +
       topCard +
       '<div class="section-head">' +
-        '<h2 class="section-title">복용 내역</h2>' +
+        '<h2 class="section-title">복용 내역' + titleSum + '</h2>' +
         (state.doseAdd ? '' : '<button class="text-btn" id="dose-add-btn">+ 기록 추가</button>') +
       '</div>' +
-      summaryHtml + chipsHtml +
+      chipsHtml +
       addForm +
       '<div class="card hist-card">' + listHtml + '</div>' +
       '<div class="med-manage">' +
