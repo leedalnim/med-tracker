@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v95';
+  var APP_VERSION = 'v96';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -1004,7 +1004,8 @@
       : '<button class="pill-btn hero-log" id="detail-log">' + ICON.pillPlus + '먹었어요</button>';
     var heroCenter =
       '<div class="hero-center">' +
-        '<div class="hero-label' + cls + '">' + topLabel + '</div>' +
+        // 큰 숫자가 없는 상태('지금 복용 가능' 등)에선 이 문구가 주인공이라 크게
+        '<div class="hero-label' + cls + (bigVal ? '' : ' solo') + '">' + topLabel + '</div>' +
         (bigVal ? '<div class="hero-big"' + (bigId || '') + '>' + esc(bigVal) + '</div>' : '') +
         (subLabel ? '<div class="hero-sub">' + esc(subLabel) + '</div>' : '') +
         heroBtn +

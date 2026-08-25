@@ -535,6 +535,14 @@ input, select {
   color: var(--text-dim);
 }
 .hero-label.hl { color: var(--accent); }
+/* 큰 숫자 없이 이 문구만 있는 상태('지금 복용 가능'·'오늘 최대')에선 주인공이라 크게 */
+.hero-label.solo {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.25;
+  max-width: 7em;
+}
 .hero-big {
   font-size: 27px;
   font-weight: 800;
