@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v93';
+  var APP_VERSION = 'v94';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -627,7 +627,9 @@
     selKey: todayKey(),
     sortMode: false,              // 홈 약 순서 변경 모드
     sortIds: null,                // 정렬 모드 임시 순서 (id 배열)
-    periodFilter: 'all'           // 생리 기록 목록 필터: 'all'|'period'|'spotting'
+    periodFilter: 'all',          // 생리 기록 목록 필터: 'all'|'period'|'spotting'
+    histMonth: 'all',             // 복용 내역에서 보고 있는 달 ('all' | 'YYYY-MM')
+    histLimit: 0                  // 복용 내역에 지금까지 펼친 건수 (0이면 기본값 사용)
   };
   var app = document.getElementById('app');
   var tickTimer = null;
@@ -645,6 +647,8 @@
     state.doseAdd = false;
     state.sortMode = false; // 다른 화면으로 이동하면 정렬 모드 해제
     state.sortIds = null;
+    state.histMonth = 'all'; // 복용 내역 보기 상태도 초기화
+    state.histLimit = 0;
     render();
   }
 
@@ -857,6 +861,8 @@
   var DAY_MS = 24 * 3600 * 1000;
   // 복용 예정 시각 직전 유예 — 이 시간 안에 들면 '먹었어요'를 미리 누를 수 있음
   var GRACE_MS = 3 * 60 * 1000;
+  // 복용 내역을 한 번에 보여주는 건수 ('더 보기'로 이만큼씩 추가)
+  var HIST_PAGE = 15;
   function fmtHM(ms) { // 남은 시간 H:MM (24시간 스케일용, 초 없음)
     var t = Math.max(0, ms);
     var h = Math.floor(t / 3600000);
@@ -1238,28 +1244,56 @@
         '</div>';
     }
 
-    // 최근 30일 기록을 날짜별로
-    var cutoff = addDays(todayKey(), -30);
+    // 전체 기록 (최신순) — 화면엔 월 칩 + '더 보기'로 나눠서 보여줌
     var doses = dosesForMed(med.id)
-      .filter(function (d) { return dateKey(d.ts) >= cutoff; })
       .sort(function (a, b) { return b.ts - a.ts; });
+
+    // 월별 집계 (최근 달부터) — 칩과 요약에 사용. 읽기만 하고 기록은 건드리지 않음
+    var monthOrder = [], monthCount = {};
+    doses.forEach(function (d) {
+      var mk = dateKey(d.ts).slice(0, 7); // 'YYYY-MM'
+      if (monthCount[mk] == null) { monthCount[mk] = 0; monthOrder.push(mk); }
+      monthCount[mk]++;
+    });
+    var thisMk = todayKey().slice(0, 7);
+    var prevD = new Date(); prevD.setDate(1); prevD.setMonth(prevD.getMonth() - 1);
+    var prevMk = dateKey(prevD.getTime()).slice(0, 7);
+
+    // 선택된 달이 사라졌으면(기록 삭제 등) 전체로 되돌림
+    var selMk = state.histMonth || 'all';
+    if (selMk !== 'all' && monthCount[selMk] == null) selMk = 'all';
+    var shown = selMk === 'all'
+      ? doses
+      : doses.filter(function (d) { return dateKey(d.ts).slice(0, 7) === selMk; });
+    var limit = state.histLimit || HIST_PAGE;
+    var page = shown.slice(0, limit);
+    var rest = shown.length - page.length;
+
+    var summaryHtml =
+      '<p class="hist-sum">이번 달 <b>' + (monthCount[thisMk] || 0) + '회</b>' +
+        ' · 지난달 <b>' + (monthCount[prevMk] || 0) + '회</b>' +
+        ' · 전체 <b>' + doses.length + '회</b></p>';
+
+    var chipsHtml = '';
+    if (doses.length) {
+      chipsHtml = '<div class="mchips">' +
+        '<button class="mchip' + (selMk === 'all' ? ' active' : '') + '" data-hmon="all">전체' +
+          '<span class="n">' + doses.length + '</span></button>' +
+        monthOrder.map(function (mk) {
+          var p = mk.split('-');
+          return '<button class="mchip' + (selMk === mk ? ' active' : '') + '" data-hmon="' + mk + '">' +
+            Number(p[1]) + '월<span class="n">' + monthCount[mk] + '</span></button>';
+        }).join('') +
+      '</div>';
+    }
 
     var listHtml = '';
     if (!doses.length) {
-      listHtml = '<div class="empty">최근 30일 기록이 없어요.</div>';
+      listHtml = '<div class="empty">아직 복용 기록이 없어요.</div>';
+    } else if (!page.length) {
+      listHtml = '<div class="empty">이 달에는 기록이 없어요.</div>';
     } else {
-      var curKey = null;
-      doses.forEach(function (d) {
-        var k = dateKey(d.ts);
-        if (k !== curKey) {
-          curKey = k;
-          var dayCount = doses.filter(function (x) { return dateKey(x.ts) === k; }).length;
-          var isToday = k === todayKey();
-          var dateLabel = esc(fmtKeyShort(k).replace(' · 오늘', ''));
-          listHtml += '<div class="history-date">' +
-            (isToday ? '<span class="today-tag">오늘</span>' : '') +
-            dateLabel + ' · ' + dayCount + med.unit + '</div>';
-        }
+      page.forEach(function (d) {
         var editing = state.timeEdit && state.timeEdit.kind === 'dose' && state.timeEdit.id === d.id;
         if (editing) {
           listHtml +=
@@ -1268,21 +1302,34 @@
               '<button class="pill-btn" data-md-save="' + esc(d.id) + '">저장</button>' +
               '<button class="text-btn" data-md-cancel>닫기</button>' +
             '</div>';
-        } else {
-          // 밀면 수정·삭제가 드러나는 스와이프 행 (시각은 한글 서브텍스트)
-          listHtml +=
-            '<div class="swipe-wrap row-swipe time-lead">' +
-              '<div class="swipe-actions">' +
-                '<button class="sw-act edit" data-md-edit="' + esc(d.id) + '">수정</button>' +
-                '<button class="sw-act del" data-md-del="' + esc(d.id) + '">삭제</button>' +
-              '</div>' +
-              '<div class="dose-row swipe-content">' +
-                '<span class="d-time">' + esc(isCheck ? fmtTimeKoMin(d.ts) : fmtTimeKo(d.ts)) + '</span>' +
-                '<span class="d-swipe-hint">' + ICON.chevronL + '</span>' +
-              '</div>' +
-            '</div>';
+          return;
         }
+        // 왼쪽 원에 연·월/일 → 날짜 제목 줄이 필요 없음
+        var dt = new Date(d.ts);
+        var isToday = dateKey(d.ts) === todayKey();
+        var circle =
+          '<div class="dcirc' + (isToday ? ' today' : '') + '">' +
+            '<span class="ym">' + String(dt.getFullYear()).slice(2) + '.' + (dt.getMonth() + 1) + '</span>' +
+            '<span class="dd">' + dt.getDate() + '</span>' +
+          '</div>';
+        // 밀면 수정·삭제가 드러나는 스와이프 행
+        listHtml +=
+          '<div class="swipe-wrap row-swipe time-lead">' +
+            '<div class="swipe-actions">' +
+              '<button class="sw-act edit" data-md-edit="' + esc(d.id) + '">수정</button>' +
+              '<button class="sw-act del" data-md-del="' + esc(d.id) + '">삭제</button>' +
+            '</div>' +
+            '<div class="dose-row swipe-content">' +
+              circle +
+              '<span class="d-time">' + esc(isCheck ? fmtTimeKoMin(d.ts) : fmtTimeKo(d.ts)) + '</span>' +
+              '<span class="d-swipe-hint">' + ICON.chevronL + '</span>' +
+            '</div>' +
+          '</div>';
       });
+      if (rest > 0) {
+        listHtml += '<button class="more-btn" id="hist-more">더 보기' +
+          '<span class="rest">남은 ' + rest + '건</span></button>';
+      }
     }
 
     // 지난 복용 기록을 날짜·시각 지정해 직접 추가하는 폼
@@ -1310,17 +1357,33 @@
       '</div>' +
       topCard +
       '<div class="section-head">' +
-        '<h2 class="section-title">복용 내역 (최근 30일)</h2>' +
+        '<h2 class="section-title">복용 내역</h2>' +
         (state.doseAdd ? '' : '<button class="text-btn" id="dose-add-btn">+ 기록 추가</button>') +
       '</div>' +
+      summaryHtml + chipsHtml +
       addForm +
-      '<div class="card">' + listHtml + '</div>' +
+      '<div class="card hist-card">' + listHtml + '</div>' +
       '<div class="med-manage">' +
         '<button class="pill-btn secondary" id="edit-med-info">' + ICON.edit + '복용 정보 수정</button>' +
         '<button class="pill-btn danger-outline" id="delete-med">' + ICON.trash + '약 삭제</button>' +
       '</div>';
 
     document.getElementById('back').addEventListener('click', function () { go('home'); });
+
+    // 월 칩 / 더 보기 — 보기 범위만 바꾸고 기록엔 손대지 않음
+    app.querySelectorAll('[data-hmon]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        state.histMonth = b.getAttribute('data-hmon');
+        state.histLimit = 0; // 달을 바꾸면 처음부터
+        renderMedDetail();
+      });
+    });
+    var moreBtn = document.getElementById('hist-more');
+    if (moreBtn) moreBtn.addEventListener('click', function () {
+      state.histLimit = (state.histLimit || HIST_PAGE) + HIST_PAGE;
+      renderMedDetail();
+    });
+
     var detailLogBtn = document.getElementById('detail-log');
     if (detailLogBtn) {
       detailLogBtn.addEventListener('click', function () {

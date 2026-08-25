@@ -847,7 +847,90 @@ input, select {
   font-weight: 800;
   color: var(--text);
   letter-spacing: -0.3px;
+  margin-right: auto; /* 시각은 왼쪽 원 옆에, 힌트는 오른쪽 끝 */
 }
+/* 복용 내역: 왼쪽 날짜 원 (연·월 위 / 일 아래) — 날짜 제목 줄을 대신함 */
+.row-swipe.time-lead .dose-row { gap: 13px; }
+.dcirc {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  line-height: 1;
+}
+.dcirc .ym {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-dim);
+  letter-spacing: -0.2px;
+  margin-bottom: 2.5px;
+  font-variant-numeric: tabular-nums;
+}
+.dcirc .dd {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+.dcirc.today { background: var(--btn); color: var(--btn-text); border-color: var(--btn); }
+.dcirc.today .ym { color: var(--btn-text); opacity: 0.78; }
+
+/* 복용 내역 요약 · 월 칩 · 더 보기 */
+.hist-sum { font-size: 12px; color: var(--text-dim); font-weight: 700; margin: 0 4px 10px; }
+.hist-sum b { color: var(--text); }
+.mchips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 4px 12px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.mchips::-webkit-scrollbar { display: none; }
+.mchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 13px;
+  background: transparent;
+}
+.mchip .n {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-dim);
+  background: var(--line);
+  border-radius: 999px;
+  padding: 1px 7px;
+  min-width: 20px;
+  text-align: center;
+}
+.mchip:active { transform: scale(0.96); }
+.mchip.active { border-color: var(--text); color: var(--text); }
+.mchip.active .n { background: var(--text); color: var(--card); }
+.more-btn {
+  width: 100%;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px;
+  margin-top: 10px;
+}
+.more-btn:active { transform: scale(0.98); }
+.more-btn .rest { color: var(--text-dim); font-weight: 700; font-size: 12.5px; margin-left: 5px; }
+.hist-card { padding-top: 6px; padding-bottom: 14px; }
 /* 달력 하루 패널: 약 이름이 주 정보, 시각은 부 정보(오른쪽 힌트와 묶음) */
 .dp-right { display: flex; align-items: center; gap: 8px; flex: none; }
 .dose-row .d-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
