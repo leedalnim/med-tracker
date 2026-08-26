@@ -944,7 +944,15 @@ input, select {
 }
 .more-btn:active { transform: scale(0.98); }
 .more-btn .rest { color: var(--text-dim); font-weight: 700; font-size: 12.5px; margin-left: 5px; }
-.hist-card { padding-top: 6px; padding-bottom: 14px; }
+/* 복용 내역 카드: 행 구분선을 카드 양끝까지 그어 목록이 깔끔하게 보이도록
+   (카드 좌우 패딩만큼 행을 넓히고, 그만큼 안쪽에서 다시 들여씀) */
+.hist-card { padding: 6px 0 14px; }
+.hist-card .row-swipe .dose-row { padding-left: 20px; padding-right: 20px; }
+.hist-card .row-swipe:last-child,
+.hist-card .row-swipe:has(+ .more-btn) { border-bottom: none; }
+.hist-card .more-btn { width: calc(100% - 40px); margin-left: 20px; margin-right: 20px; }
+.hist-card .empty { padding-left: 20px; padding-right: 20px; }
+.hist-card .time-edit { padding-left: 20px; padding-right: 20px; }
 /* 달력 하루 패널: 약 이름이 주 정보, 시각은 부 정보(오른쪽 힌트와 묶음) */
 .dp-right { display: flex; align-items: center; gap: 8px; flex: none; }
 .dose-row .d-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
