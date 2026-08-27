@@ -852,7 +852,7 @@ input, select {
 /* 시각이 주 정보인 행(약 상세 복용 내역)만 시각을 크게 */
 .row-swipe.time-lead .d-time {
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text);
   letter-spacing: -0.3px;
   margin-right: auto; /* 시각은 왼쪽 원 옆에, 힌트는 오른쪽 끝 */

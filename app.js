@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v99';
+  var APP_VERSION = 'v100';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -1322,7 +1322,7 @@
             '</div>' +
             '<div class="dose-row swipe-content">' +
               circle +
-              '<span class="d-time">' + esc(isCheck ? fmtTimeKoMin(d.ts) : fmtTimeKo(d.ts)) + '</span>' +
+              '<span class="d-time">' + esc(fmtTimeKoMin(d.ts)) + '</span>' + // 목록은 시·분까지만
               '<span class="d-swipe-hint">' + ICON.chevronL + '</span>' +
             '</div>' +
           '</div>';
