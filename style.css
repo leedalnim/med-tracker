@@ -1128,7 +1128,40 @@ input, select {
   box-shadow: var(--shadow);
   padding: 17px 20px;
 }
-/* 토글이 여러 줄 이어질 때 (약별 알림 목록) */
+/* 약별 알림 — 토글과 시각 설정을 한 카드로 */
+.alarm-card {
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  margin-top: 8px;
+  overflow: hidden;
+}
+.alarm-card .toggle-row { background: transparent; box-shadow: none; border-radius: 0; }
+.alarm-opt {
+  border-top: 1px solid var(--line);
+  padding: 12px 20px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.alarm-opt .seg { flex: 1; min-width: 0; }
+.alarm-opt .seg button { padding: 9px 0; font-size: 12.5px; }
+.alarm-opt input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex-shrink: 0;
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+  outline: none;
+}
+.alarm-opt input[type="time"]:focus { border-color: var(--text); }
+/* 토글이 여러 줄 이어질 때 */
 .toggle-row + .toggle-row { margin-top: 8px; }
 .toggle-row[disabled] { opacity: 0.5; }
 .toggle-row .m-title { font-size: 15px; font-weight: 700; }

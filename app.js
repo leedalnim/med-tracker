@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v102';
+  var APP_VERSION = 'v103';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -210,12 +210,12 @@
     // v1~2: type 기본값, 이지엔6프로 최대치(허가 용량 1일 4캡슐) 수정
     if (ver < 2 && storage.has(KEY.meds)) {
       var meds = storage.get(KEY.meds, []).map(function (m) {
-        var out = {
-          id: m.id, name: m.name, unit: m.unit,
-          type: m.type || 'interval',
-          intervalHours: m.intervalHours != null ? m.intervalHours : null,
-          maxPerDay: m.maxPerDay != null ? m.maxPerDay : null
-        };
+        var out = {};
+        // 나중에 생긴 설정(알림 시각 등)까지 남기려면 먼저 통째로 복사한 뒤 보정한다
+        Object.keys(m).forEach(function (k) { out[k] = m[k]; });
+        out.type = m.type || 'interval';
+        out.intervalHours = m.intervalHours != null ? m.intervalHours : null;
+        out.maxPerDay = m.maxPerDay != null ? m.maxPerDay : null;
         if (ver < 1 && m.id === 'preset-ezn6pro' && m.maxPerDay === 6) out.maxPerDay = 4;
         return out;
       });
@@ -627,10 +627,39 @@
     }
   }
 
-  // 약 하나의 '다음 복용 시각' — 한 번도 안 먹었으면 기준이 없어 null
+  /* 알림 시각 방식
+     'interval' (기본) — 마지막 복용 + 간격. 먹은 시각에 따라 매일 조금씩 밀린다.
+     'daily'          — 매일 정해진 시각. 밀리지 않는다. */
+  function alarmMode(med) { return med.alarmMode === 'daily' ? 'daily' : 'interval'; }
+  function alarmTime(med) {
+    return /^\d{2}:\d{2}$/.test(med.alarmTime || '') ? med.alarmTime : '21:00';
+  }
+  // 약의 알림 설정만 바꾸고 나머지 값은 그대로 둔다
+  function patchMed(id, patch) {
+    saveMeds(getMeds().map(function (m) {
+      if (m.id !== id) return m;
+      var out = {};
+      Object.keys(m).forEach(function (k) { out[k] = m[k]; });
+      Object.keys(patch).forEach(function (k) { out[k] = patch[k]; });
+      return out;
+    }));
+  }
+
+  // 매일 정해진 시각 — 다음 차례. 오늘 이미 먹었으면 내일로 넘긴다.
+  function nextDailyDue(med) {
+    var hm = alarmTime(med).split(':');
+    var n = new Date();
+    var d = new Date(n.getFullYear(), n.getMonth(), n.getDate(),
+                     parseInt(hm[0], 10), parseInt(hm[1], 10), 0, 0);
+    if (d.getTime() <= Date.now()) return d.getTime() + DAY_MS;
+    return todayDosesForMed(med.id).length ? d.getTime() + DAY_MS : d.getTime();
+  }
+
+  // 약 하나의 '다음 알림 시각' — 기준이 없으면 null
   function nextDueFor(med) {
+    if (alarmMode(med) === 'daily') return nextDailyDue(med);
     var last = lastDoseForMed(med.id);
-    if (!last) return null;
+    if (!last) return null; // 한 번도 안 먹었으면 간격을 잴 기준이 없음
     if (med.type === 'check') return last.ts + DAY_MS;
     if (!med.intervalHours) return null;
     return last.ts + med.intervalHours * 3600 * 1000;
@@ -2240,15 +2269,29 @@
         } else {
           html += '<p class="settings-sub">알림 받을 약</p>';
           alarmMeds.forEach(function (med) {
-            var due = nextDueFor(med);
-            html +=
+            var mOn = medNotifOn(med.id), mode = alarmMode(med), due = mOn ? nextDueFor(med) : null;
+            html += '<div class="alarm-card">' +
               '<button class="toggle-row" data-notif-med="' + esc(med.id) + '">' +
                 '<div><div class="m-title">' + esc(med.name) + '</div>' +
-                '<div class="m-desc">' + (!medNotifOn(med.id) ? '알림 꺼짐'
-                  : (due && due > Date.now() ? esc(fmtWhenKo(due)) + ' 알림' : '먹은 기록이 생기면 알림')) +
+                '<div class="m-desc">' + (!mOn ? '알림 꺼짐'
+                  : (due ? esc(fmtWhenKo(due)) + ' 알림' : '먹은 기록이 생기면 알림')) +
                 '</div></div>' +
-                '<span class="switch' + (medNotifOn(med.id) ? ' on' : '') + '"></span>' +
+                '<span class="switch' + (mOn ? ' on' : '') + '"></span>' +
               '</button>';
+            if (mOn) {
+              html += '<div class="alarm-opt">' +
+                '<div class="seg">' +
+                  '<button type="button" data-amode="interval" data-mid="' + esc(med.id) + '"' +
+                    (mode === 'interval' ? ' class="active"' : '') + '>간격 기준</button>' +
+                  '<button type="button" data-amode="daily" data-mid="' + esc(med.id) + '"' +
+                    (mode === 'daily' ? ' class="active"' : '') + '>매일 시각</button>' +
+                '</div>' +
+                (mode === 'daily'
+                  ? '<input type="time" data-atime="' + esc(med.id) + '" value="' + esc(alarmTime(med)) + '">'
+                  : '') +
+              '</div>';
+            }
+            html += '</div>';
           });
         }
       }
@@ -2330,6 +2373,19 @@
     app.querySelectorAll('[data-notif-med]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         toggleMedNotif(btn.getAttribute('data-notif-med'));
+        renderSettings();
+      });
+    });
+    app.querySelectorAll('[data-amode]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        patchMed(btn.getAttribute('data-mid'), { alarmMode: btn.getAttribute('data-amode') });
+        renderSettings();
+      });
+    });
+    app.querySelectorAll('[data-atime]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        if (!/^\d{2}:\d{2}/.test(inp.value)) return;
+        patchMed(inp.getAttribute('data-atime'), { alarmTime: inp.value.slice(0, 5) });
         renderSettings();
       });
     });
@@ -2627,6 +2683,11 @@
         name: name, unit: unit, type: effType,
         intervalHours: interval, maxPerDay: max
       };
+      // 폼에 없는 설정(알림 시각 등)은 수정해도 그대로 유지
+      if (editing) {
+        if (editing.alarmMode) record.alarmMode = editing.alarmMode;
+        if (editing.alarmTime) record.alarmTime = editing.alarmTime;
+      }
       if (favMode) {
         // '자주 찾는 약'은 mt.favorites에만 저장 — 홈(트래킹 약)엔 영향 없음
         var favs = getFavorites();
