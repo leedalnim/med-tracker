@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v100';
+  var APP_VERSION = 'v101';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -14,6 +14,13 @@
   }, { passive: false });
 
   /* ===== 저장소 (localStorage 불가 환경은 메모리로 폴백) ===== */
+  // 이 기기에서만 의미가 있는 설정 — 백업 대상도 아니고, 바뀌어도 클라우드 업로드를 부르지 않음
+  var LOCAL_ONLY = [
+    'mt.cloudKey', 'mt.cloudOn', 'mt.cloudAt', 'mt.dataAt',
+    'mt.notifOn', 'mt.notifMeds', 'mt.pushSub'
+  ];
+  // 값이 바뀌면 서버에 예약된 알림을 다시 계산해야 하는 항목
+  var ALARM_KEYS = ['mt.meds', 'mt.doses', 'mt.notifOn', 'mt.notifMeds'];
   var memStore = {};
   var storage = {
     get: function (key, fallback) {
@@ -27,12 +34,14 @@
     set: function (key, val) {
       memStore[key] = val;
       try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* 메모리만 사용 */ }
-      // 데이터가 바뀌면 변경 시각을 남기고 클라우드 백업 예약 (클라우드 자체 설정값은 제외)
-      if (key !== 'mt.cloudKey' && key !== 'mt.cloudOn' && key !== 'mt.cloudAt' && key !== 'mt.dataAt') {
+      // 데이터가 바뀌면 변경 시각을 남기고 클라우드 백업 예약 (기기 전용 설정값은 제외)
+      if (LOCAL_ONLY.indexOf(key) < 0) {
         try { localStorage.setItem('mt.dataAt', JSON.stringify(Date.now())); } catch (e) {}
         memStore['mt.dataAt'] = Date.now();
         if (typeof scheduleCloudPush === 'function') scheduleCloudPush();
       }
+      // 약·복용기록·알림 설정이 바뀌면 예약된 알림도 다시 맞춤
+      if (ALARM_KEYS.indexOf(key) >= 0 && typeof scheduleAlarmSync === 'function') scheduleAlarmSync();
     },
     has: function (key) {
       try { return localStorage.getItem(key) !== null; } catch (e) { return key in memStore; }
@@ -51,7 +60,10 @@
     cloudKey: 'mt.cloudKey',  // 복구 코드(UUID) — 이 코드를 아는 기기만 내 백업에 접근
     cloudOn: 'mt.cloudOn',    // 클라우드 자동 백업 사용 여부 (새 기기는 항상 꺼짐으로 시작)
     cloudAt: 'mt.cloudAt',    // 마지막 백업 성공 시각(ms)
-    dataAt: 'mt.dataAt'       // 마지막 데이터 변경 시각(ms) — cloudAt보다 최신이면 아직 못 올린 상태
+    dataAt: 'mt.dataAt',      // 마지막 데이터 변경 시각(ms) — cloudAt보다 최신이면 아직 못 올린 상태
+    notifOn: 'mt.notifOn',    // 이 기기에서 복약 알림 사용 여부 (기기별, 백업 안 됨)
+    notifMeds: 'mt.notifMeds',// 알림을 켠 약 id 목록
+    pushSub: 'mt.pushSub'     // 서버에 등록해둔 푸시 구독 endpoint (재등록 판단용)
   };
 
   /* ===== 클라우드 백업 설정 =====
@@ -61,6 +73,10 @@
     url: 'https://wjqjebemglkitgrekzzz.supabase.co',
     key: 'sb_publishable_oeP1ttfINWEBwByugOEfMw_-2GtROZz'
   };
+
+  /* ===== 복약 알림(Web Push) =====
+     VAPID 공개키. 공개돼도 안전한 값 — 알림을 실제로 보내려면 서버에만 있는 비밀키가 필요하다. */
+  var VAPID_PUBLIC = 'BLcQAxK9b6qvp3Pb4iloYxB06MzbH_QZ1tMXYueFVa6jVWzu9EapPWolmCOm8wzWwlprJPgJN0VTOD2DUwLHnB0';
 
   // 약 type: 'interval' = 간격 트래커(다음 복용 가능 계산) / 'check' = 복용 체크(먹었는지만)
 
@@ -366,6 +382,15 @@
             '새 폰에서는 <b>코드로 복원</b>에 이 코드를 넣으면 기록이 돌아와요. ' +
             '내보내기 파일에도 코드가 함께 저장돼요.<br><br>' +
             '저장은 항상 이 기기에 먼저 하고, 인터넷이 안 되면 백업만 건너뛰어요.'
+    },
+    notif: {
+      title: '복약 알림',
+      body: '<b>다음 복용 시각</b>이 되면 알림이 와요. 앱이 꺼져 있어도 잠금화면에 떠요.<br><br>' +
+            '알림 시각은 <b>마지막으로 먹은 시각 + 간격</b>으로 계산해요. ' +
+            '복용 체크 약은 마지막 복용 + 24시간이에요. 아직 한 번도 안 먹은 약은 기준이 없어서 알림이 안 가요.<br><br>' +
+            '<b>홈 화면에 추가한 앱</b>에서만 켤 수 있어요 (사파리 탭에서는 iOS가 막아둬요).<br><br>' +
+            '알림은 <b>이 기기에만</b> 적용돼요. 다른 폰에서는 거기서 따로 켜면 돼요. ' +
+            '인터넷이 잠깐 끊겨 있으면 연결된 뒤에 도착해요.'
     }
   };
   function helpBtn(key) {
@@ -486,6 +511,153 @@
     if (!cloudOn() || !cloudKey() || !cloudPending()) return;
     if (recordCount(snapshotData()) === 0) return;
     cloudPush(cloudKey(), function () { /* 실패하면 다음 기회에 */ });
+  }
+
+  /* ===== 복약 알림 =====
+     원리: 폰은 스스로 깨어나지 못하므로 '다음 복용 시각'을 서버에 맡겨두고,
+     그 시각이 되면 서버가 이 기기로 푸시를 보낸다.
+     안전 원칙 — 알림이 안 되더라도 앱 본체와 기록은 아무 영향도 받지 않는다. */
+
+  function pushSupported() {
+    return typeof navigator !== 'undefined' && 'serviceWorker' in navigator &&
+      typeof window !== 'undefined' && 'PushManager' in window && 'Notification' in window;
+  }
+  // iOS는 '홈 화면에 추가'한 상태에서만 웹 알림을 허용한다
+  function isStandalone() {
+    if (window.navigator.standalone === true) return true;
+    try { return window.matchMedia('(display-mode: standalone)').matches; } catch (e) { return false; }
+  }
+  function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent || '');
+  }
+  function notifOn() { return !!storage.get(KEY.notifOn, false); }
+  function notifMeds() {
+    var v = storage.get(KEY.notifMeds, []);
+    return Array.isArray(v) ? v : [];
+  }
+  function medNotifOn(id) { return notifMeds().indexOf(id) >= 0; }
+  function toggleMedNotif(id) {
+    var list = notifMeds(), i = list.indexOf(id);
+    if (i >= 0) list.splice(i, 1); else list.push(id);
+    storage.set(KEY.notifMeds, list);
+  }
+
+  function urlB64ToBytes(b64) {
+    var pad = '='.repeat((4 - (b64.length % 4)) % 4);
+    var raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  function subKey(sub, name) {
+    var raw = sub.getKey(name);
+    var bytes = new Uint8Array(raw);
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  // 알림 켜기 — 권한 요청 → 푸시 구독 → 서버에 등록. done(ok, 메시지)
+  function enableNotif(done) {
+    if (!pushSupported()) { done(false, '이 브라우저에선 알림을 쓸 수 없어요'); return; }
+    if (isIOS() && !isStandalone()) {
+      done(false, '홈 화면에 추가한 앱에서만 켤 수 있어요');
+      return;
+    }
+    Notification.requestPermission().then(function (perm) {
+      if (perm !== 'granted') {
+        done(false, perm === 'denied' ? 'iOS 설정 > 알림에서 허용해주세요' : '알림 권한이 필요해요');
+        return;
+      }
+      navigator.serviceWorker.ready.then(function (reg) {
+        return reg.pushManager.getSubscription().then(function (existing) {
+          if (existing) return existing;
+          return reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlB64ToBytes(VAPID_PUBLIC)
+          });
+        });
+      }).then(function (sub) {
+        cloudRpc('med_push_sub', {
+          p_key: ensureCloudKey(),
+          p_endpoint: sub.endpoint,
+          p_p256dh: subKey(sub, 'p256dh'),
+          p_auth: subKey(sub, 'auth')
+        }, function (ok, res) {
+          if (!ok) { done(false, typeof res === 'string' ? res : '서버에 등록하지 못했어요'); return; }
+          storage.set(KEY.pushSub, sub.endpoint);
+          storage.set(KEY.notifOn, true);
+          syncAlarms();
+          done(true, '알림을 켰어요');
+        });
+      }).catch(function () {
+        done(false, '알림을 켤 수 없어요');
+      });
+    }).catch(function () {
+      done(false, '알림 권한을 확인할 수 없어요');
+    });
+  }
+
+  // 알림 끄기 — 구독 해지 + 서버에 남은 예약 삭제 (기록은 건드리지 않음)
+  function disableNotif(done) {
+    var endpoint = storage.get(KEY.pushSub, null);
+    var key = cloudKey();
+    storage.set(KEY.notifOn, false);
+    storage.set(KEY.pushSub, null);
+    if (key) {
+      cloudRpc('med_alarm_sync', { p_key: key, p_alarms: [] }, function () {});
+      if (endpoint) cloudRpc('med_push_unsub', { p_key: key, p_endpoint: endpoint }, function () {});
+    }
+    if (pushSupported()) {
+      navigator.serviceWorker.ready.then(function (reg) {
+        return reg.pushManager.getSubscription();
+      }).then(function (sub) {
+        if (sub) return sub.unsubscribe();
+      }).catch(function () {}).then(function () { done(true); });
+    } else {
+      done(true);
+    }
+  }
+
+  // 약 하나의 '다음 복용 시각' — 한 번도 안 먹었으면 기준이 없어 null
+  function nextDueFor(med) {
+    var last = lastDoseForMed(med.id);
+    if (!last) return null;
+    if (med.type === 'check') return last.ts + DAY_MS;
+    if (!med.intervalHours) return null;
+    return last.ts + med.intervalHours * 3600 * 1000;
+  }
+  function computeAlarms() {
+    var on = notifMeds(), now = Date.now(), out = [];
+    getMeds().forEach(function (med) {
+      if (on.indexOf(med.id) < 0) return;
+      var due = nextDueFor(med);
+      if (!due || due <= now) return; // 이미 지난 건 알릴 필요가 없음
+      out.push({
+        med_id: med.id,
+        title: med.name,
+        body: med.type === 'check' ? '오늘 복용할 시간이에요' : '이제 드셔도 돼요',
+        due_at: new Date(due).toISOString()
+      });
+    });
+    return out;
+  }
+
+  // 서버의 예약 목록을 지금 상태로 통째로 맞춤 (같은 내용이면 호출하지 않음)
+  var alarmTimer = null, alarmSig = null;
+  function syncAlarms() {
+    if (!cloudKey()) return;
+    var list = notifOn() ? computeAlarms() : [];
+    var sig = JSON.stringify(list);
+    if (sig === alarmSig) return;
+    cloudRpc('med_alarm_sync', { p_key: cloudKey(), p_alarms: list }, function (ok) {
+      if (ok) alarmSig = sig;
+    });
+  }
+  function scheduleAlarmSync() {
+    if (!notifOn() && alarmSig === null) return;
+    if (alarmTimer) clearTimeout(alarmTimer);
+    alarmTimer = setTimeout(function () { alarmTimer = null; syncAlarms(); }, 4000);
   }
 
   function dosesForMed(medId) {
@@ -2040,6 +2212,42 @@
         '<span class="switch' + (isPeriodOn() ? ' on' : '') + '"></span>' +
       '</button></div>';
 
+    // 복약 알림 — 이 기기 전용 설정. 서버가 '다음 복용 시각'에 맞춰 푸시를 보낸다.
+    var nOn = notifOn(), nBlocked = isIOS() && !isStandalone();
+    html += '<div class="settings-group"><h2>복약 알림' + helpBtn('notif') + '</h2>';
+    if (!pushSupported()) {
+      html += '<p class="settings-note">이 브라우저에선 알림을 쓸 수 없어요.</p>';
+    } else {
+      html +=
+        '<button class="toggle-row" id="notif-toggle"' + (nBlocked ? ' disabled' : '') + '>' +
+          '<div><div class="m-title">알림 받기</div>' +
+          '<div class="m-desc">' + (nBlocked
+            ? '홈 화면에 추가한 앱에서만 켤 수 있어요'
+            : (nOn ? '다음 복용 시각이 되면 알려줘요' : '이 기기에서 알림을 받아요')) + '</div></div>' +
+          '<span class="switch' + (nOn ? ' on' : '') + '"></span>' +
+        '</button>';
+      if (nOn) {
+        var alarmMeds = getMeds();
+        if (!alarmMeds.length) {
+          html += '<p class="settings-note">트래킹 중인 약이 없어요.</p>';
+        } else {
+          alarmMeds.forEach(function (med) {
+            var due = nextDueFor(med);
+            html +=
+              '<button class="toggle-row" data-notif-med="' + esc(med.id) + '">' +
+                '<div><div class="m-title">' + esc(med.name) + '</div>' +
+                '<div class="m-desc">' + (!medNotifOn(med.id) ? '알림 꺼짐'
+                  : (due && due > Date.now() ? esc(fmtWhenKo(due)) + ' 알림' : '먹은 기록이 생기면 알림')) +
+                '</div></div>' +
+                '<span class="switch' + (medNotifOn(med.id) ? ' on' : '') + '"></span>' +
+              '</button>';
+          });
+        }
+      }
+      html += '<p class="settings-status" id="notif-status"></p>';
+    }
+    html += '</div>';
+
     html += '<div class="settings-group"><h2>데이터 백업' + helpBtn('backup') + '</h2>' +
       '<div class="backup-actions">' +
         '<button class="pill-btn secondary" id="export-data">' + ICON.download + '내보내기</button>' +
@@ -2092,6 +2300,30 @@
     document.getElementById('period-toggle').addEventListener('click', function () {
       storage.set(KEY.periodOn, !isPeriodOn());
       renderSettings();
+    });
+
+    var notifToggle = document.getElementById('notif-toggle');
+    if (notifToggle) {
+      notifToggle.addEventListener('click', function () {
+        var st = document.getElementById('notif-status');
+        if (notifOn()) {
+          disableNotif(function () { renderSettings(); });
+          return;
+        }
+        notifToggle.disabled = true;
+        if (st) st.textContent = '알림을 켜는 중…';
+        enableNotif(function (ok, msg) {
+          renderSettings();
+          var st2 = document.getElementById('notif-status');
+          if (st2 && !ok) st2.textContent = msg;
+        });
+      });
+    }
+    app.querySelectorAll('[data-notif-med]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        toggleMedNotif(btn.getAttribute('data-notif-med'));
+        renderSettings();
+      });
     });
     document.getElementById('export-data').addEventListener('click', exportData);
     var impFile = document.getElementById('import-file');
@@ -2481,11 +2713,11 @@
 
   // 탭 복귀 시 화면 갱신 (자정 넘김·백그라운드 경과 반영) + 밀린 백업 올리기
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) { render(); cloudCatchUp(); }
+    if (!document.hidden) { render(); cloudCatchUp(); if (notifOn()) syncAlarms(); }
   });
   // 인터넷이 돌아오면, 앱을 켤 때 못 올린 게 있으면 자동으로 다시 시도
-  window.addEventListener('online', cloudCatchUp);
-  setTimeout(cloudCatchUp, 2000);
+  window.addEventListener('online', function () { cloudCatchUp(); if (notifOn()) syncAlarms(); });
+  setTimeout(function () { cloudCatchUp(); if (notifOn()) syncAlarms(); }, 2000);
 
   // 서비스워커 등록 (미리보기 등 지원 안 되는 환경은 조용히 통과)
   if ('serviceWorker' in navigator) {
