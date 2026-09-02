@@ -1097,6 +1097,16 @@ input, select {
 
 /* ===== 설정 ===== */
 .settings-group { margin-bottom: 24px; }
+/* 한 그룹 안에서 성격이 다른 묶음을 나누는 작은 라벨 */
+.settings-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin: 18px 4px 8px;
+  display: flex;
+  align-items: center;
+}
+.settings-group > .settings-sub:first-of-type { margin-top: 0; }
 .settings-group h2 {
   font-size: 13px;
   font-weight: 700;

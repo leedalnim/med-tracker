@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v101';
+  var APP_VERSION = 'v102';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -584,7 +584,15 @@
           p_p256dh: subKey(sub, 'p256dh'),
           p_auth: subKey(sub, 'auth')
         }, function (ok, res) {
-          if (!ok) { done(false, typeof res === 'string' ? res : '서버에 등록하지 못했어요'); return; }
+          if (!ok) {
+            var msg = typeof res === 'string' ? res : '';
+            // 서버에 알림용 함수가 아직 없는 경우 — 원인을 알 수 있게 바꿔서 보여준다
+            if (/404|Could not find the function|schema cache/i.test(msg)) {
+              msg = '서버에 알림 설정이 아직 안 됐어요';
+            }
+            done(false, msg || '서버에 등록하지 못했어요');
+            return;
+          }
           storage.set(KEY.pushSub, sub.endpoint);
           storage.set(KEY.notifOn, true);
           syncAlarms();
@@ -2154,8 +2162,9 @@
         ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
         : '최소 간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
     }
-    // 내 약 관리 = 홈에서 트래킹 중인 약 (여기선 수정/삭제만, 추가는 홈에서)
-    html += '<div class="settings-group"><h2>내 약 관리</h2>';
+    // 약 관리 — 홈에 있는 약(수정/삭제)과 홈에 추가할 때 고를 후보를 한 묶음으로
+    html += '<div class="settings-group"><h2>약 관리</h2>';
+    html += '<p class="settings-sub">홈에 있는 약</p>';
     var meds = getMeds();
     if (!meds.length) {
       html += '<p class="settings-note">트래킹 중인 약이 없어요. 홈 화면에서 추가하세요.</p>';
@@ -2173,10 +2182,8 @@
           '</div>' +
         '</div>';
     });
-    html += '</div>';
-
     // 자주 찾는 약 = 홈에서 '약 추가'할 때 고르는 후보 목록 (여기 추가해도 홈엔 안 뜸)
-    html += '<div class="settings-group"><h2>자주 찾는 약' + helpBtn('fav') + '</h2>';
+    html += '<p class="settings-sub">자주 찾는 약' + helpBtn('fav') + '</p>';
     var favs = getFavorites();
     favs.forEach(function (f) {
       html +=
@@ -2231,6 +2238,7 @@
         if (!alarmMeds.length) {
           html += '<p class="settings-note">트래킹 중인 약이 없어요.</p>';
         } else {
+          html += '<p class="settings-sub">알림 받을 약</p>';
           alarmMeds.forEach(function (med) {
             var due = nextDueFor(med);
             html +=
