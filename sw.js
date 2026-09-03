@@ -1,5 +1,5 @@
 /* 복약 트래커 서비스워커 — 오프라인 캐싱 */
-var CACHE_NAME = 'med-tracker-v111';
+var CACHE_NAME = 'med-tracker-v112';
 var ASSETS = [
   './',
   './index.html',
@@ -50,18 +50,26 @@ self.addEventListener('push', function (event) {
       badge: './icons/icon-192.png',
       tag: data.tag || 'med-dose',
       renotify: true,
-      data: { url: data.url || './' }
+      // tag에 약 id가 들어온다 — 눌렀을 때 그 약 화면으로 바로 보내려고 같이 넘긴다
+      data: { url: data.url || './', med: data.tag || null }
     })
   );
 });
 
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-  var url = (event.notification.data && event.notification.data.url) || './';
+  var info = event.notification.data || {};
+  var med = info.med || null;
+  var url = med ? './?med=' + encodeURIComponent(med) : (info.url || './');
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
       for (var i = 0; i < list.length; i++) {
-        if ('focus' in list[i]) return list[i].focus();
+        var c = list[i];
+        if ('focus' in c) {
+          // 이미 열려 있는 앱은 새로 열리지 않으므로 어떤 약인지 따로 알려준다
+          if (med) { try { c.postMessage({ type: 'open-med', med: med }); } catch (e) {} }
+          return c.focus();
+        }
       }
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })

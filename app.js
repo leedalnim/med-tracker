@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v111';
+  var APP_VERSION = 'v112';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -3047,7 +3047,32 @@
   /* ===== 시작 ===== */
   migrate();
   applyTheme();
-  render();
+
+  /* ===== 알림을 누르고 들어온 경우 그 약 화면으로 ===== */
+  // 알림에서 열리면 주소에 ?med=<약 id>가 붙는다
+  function openMedFromNotif(id) {
+    if (!id || !medById(id)) return false;
+    go('medDetail', { detailMedId: id, returnTo: 'home' });
+    return true;
+  }
+  var notifMedId = null;
+  try {
+    notifMedId = new URLSearchParams(window.location.search).get('med');
+    if (notifMedId) {
+      // 주소는 바로 정리 — 다음에 열 때 또 그 화면으로 가지 않도록
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  } catch (e) { notifMedId = null; }
+
+  if (!(notifMedId && openMedFromNotif(notifMedId))) render();
+
+  // 앱이 이미 떠 있는 상태에서 알림을 누른 경우 (서비스워커가 알려준다)
+  if ('serviceWorker' in navigator && navigator.serviceWorker.addEventListener) {
+    navigator.serviceWorker.addEventListener('message', function (ev) {
+      var d = ev && ev.data;
+      if (d && d.type === 'open-med') openMedFromNotif(d.med);
+    });
+  }
 
   // 시스템 테마 변경 추종 (테마가 '시스템'일 때만 상태바 색 갱신)
   if (window.matchMedia) {
