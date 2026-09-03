@@ -40,7 +40,9 @@ async function send(sub: Sub, payload: string): Promise<'ok' | 'gone' | 'fail'> 
   const req = webpush.generateRequestDetails(
     { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
     payload,
-    { TTL: 3 * 3600, contentEncoding: 'aes128gcm' },
+    // urgency high — 기본값(normal)이면 애플이 배터리를 아끼려고 모아뒀다 늦게 배달한다.
+    // 복약 시각 알림은 제때 도착해야 하므로 즉시 배달을 요청한다.
+    { TTL: 3 * 3600, contentEncoding: 'aes128gcm', urgency: 'high' },
   );
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers)) {
