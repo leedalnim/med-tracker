@@ -5,6 +5,37 @@
 
 ---
 
+## ⭐ 2026-09 결론 먼저
+
+웹 PWA로 **알림(푸시)까지는 붙였고 잘 동작해요.** 남은 이유는 딱 두 개예요.
+
+| | 웹으로 가능? | 비고 |
+|---|---|---|
+| 복약 리마인더(푸시) | ✅ **이미 됨** | Supabase + Web Push |
+| **알람** (무음 뚫고 깨우기) | ❌ | iOS 26 **AlarmKit** 으로만 가능 |
+| **위젯** | ❌ | WidgetKit 필요 |
+
+### 확인해둔 사실 (검색·원문 확인 완료)
+
+- **AlarmKit은 별도 entitlement가 필요 없어요.** `Info.plist`에 `NSAlarmKitUsageDescription`
+  한 줄 + 런타임 권한 요청이 전부예요.
+  → *"AlarmKit은 애플 승인이 필요하다"는 말이 인터넷에 도는데, 애플 엔지니어가 포럼에서
+  "그건 LLM이 지어낸 존재하지 않는 entitlement"라고 직접 정정했어요.*
+  ([Apple 포럼](https://developer.apple.com/forums/thread/797950))
+  → 따라서 **무료 Apple ID로도 될 가능성이 높아요.** 다만 실제 빌드로 확인 필요.
+- **위젯은 무료 계정에서 막혀요.** App Group이 진짜 entitlement라서요.
+  (우회: 위젯이 Supabase에서 직접 읽기 — 오프라인 갱신은 포기)
+- **7일 만료는 사람이 처리 안 해도 돼요.** SideStore가 폰에서 스스로 갱신해줘요
+  (AltStore는 컴퓨터가 같은 WiFi에 있어야 함). 계정 정지 위험 없음.
+
+### 그래서 순서
+
+1. **무료 Apple ID로 빌드** → AlarmKit 알람이 실제로 울리는지 확인 ← 여기가 갈림길
+2. 되면 → 그대로 사용. 7일 갱신이 귀찮아지면 SideStore 설정
+3. 위젯까지 원하면 → 그때 $99 결정
+
+---
+
 ## 0. 왜 네이티브? (우리 앱 기준 실익)
 
 | 목적 | 웹(PWA)으로 충분? | 비고 |
@@ -141,7 +172,24 @@
 
 ---
 
-## 9. 이 저장소에서 준비해줄 수 있는 것
+## 9. 맥북에서 Claude Code로 이어서 하기 (권장)
+
+지금까지는 클라우드 환경에서 작업해서 **Xcode를 못 써요.** 코드를 써도 빌드해볼 수가 없어요.
+**맥북에 Claude Code를 설치하면** 빌드·오류 수정·시뮬레이터 실행까지 직접 할 수 있어요.
+
+```bash
+npm install -g @anthropic-ai/claude-code
+git clone https://github.com/leedalnim/med-tracker.git
+cd med-tracker && claude
+```
+
+- 첫 마디로 **"CLAUDE.md 와 NATIVE_PLAN.md 읽고 시작해줘"** 라고 하시면 맥락을 잡아요.
+- **실기기 첫 설치의 Apple ID 로그인·신뢰 버튼**은 사람이 직접 눌러야 해요. 그 뒤론 명령어로 가능.
+- 디자인은 재작업이 아니에요 — 지금 웹 코드(`app.js`/`style.css`)가 **그대로** 앱 안에서 돌아요.
+
+---
+
+## 10. 이 저장소에서 준비해줄 수 있는 것
 빌드는 맥북에서 직접 해야 하지만(이 환경엔 Xcode가 없음), 아래는 미리 만들어 커밋해둘 수 있어요.
 - `capacitor.config.json` + `package.json`
 - 알림 설정 UI + 예약/취소 로직 (`app.js`) — **웹에서는 자동으로 비활성**, 네이티브에서만 켜짐
