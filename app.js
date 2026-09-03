@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v104';
+  var APP_VERSION = 'v105';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -696,6 +696,62 @@
     if (alarmTimer) clearTimeout(alarmTimer);
     alarmTimer = setTimeout(function () { alarmTimer = null; syncAlarms(); }, 4000);
   }
+
+  /* ===== 약 목록 통합 =====
+     홈에 있는 약(mt.meds)과 즐겨찾기(mt.favorites)를 이름으로 묶어 한 줄로 본다.
+     저장 구조는 그대로 두고 보기만 합친다. */
+  function medEntries() {
+    var out = [], idx = {};
+    getMeds().forEach(function (m) {
+      idx[m.name] = { name: m.name, home: m, fav: null };
+      out.push(idx[m.name]);
+    });
+    getFavorites().forEach(function (f) {
+      if (idx[f.name]) { idx[f.name].fav = f; return; }
+      idx[f.name] = { name: f.name, home: null, fav: f };
+      out.push(idx[f.name]);
+    });
+    return out;
+  }
+  function entryByName(name) {
+    var list = medEntries();
+    for (var i = 0; i < list.length; i++) if (list[i].name === name) return list[i];
+    return null;
+  }
+  // 홈에 올리고 내리기 — 삭제가 아니라 '이동'이라 약 id가 유지되고 복용 이력이 계속 이어진다
+  function setEntryHome(entry, on) {
+    var meds = getMeds(), favs = getFavorites();
+    if (on) {
+      if (entry.home || !entry.fav) return;
+      favs = favs.filter(function (f) { return f.id !== entry.fav.id; });
+      meds.push(entry.fav);
+    } else {
+      if (!entry.home) return;
+      meds = meds.filter(function (m) { return m.id !== entry.home.id; });
+      // 같은 이름의 즐겨찾기 사본이 있으면 지우고, 기록이 붙어 있는 쪽을 남긴다
+      favs = favs.filter(function (f) { return f.name !== entry.home.name; });
+      favs.push(entry.home);
+    }
+    saveMeds(meds);
+    saveFavorites(favs);
+  }
+  function toggleEntryFav(entry) {
+    var favs = getFavorites();
+    if (entry.fav) {
+      saveFavorites(favs.filter(function (f) { return f.id !== entry.fav.id; }));
+    } else if (entry.home) {
+      var copy = {};
+      Object.keys(entry.home).forEach(function (k) { copy[k] = entry.home[k]; });
+      copy.id = uid(); // 홈의 약과 별개 항목 — 홈 쪽 id(복용 이력)는 건드리지 않는다
+      favs.push(copy);
+      saveFavorites(favs);
+    }
+  }
+  function deleteEntry(entry) {
+    if (entry.home) saveMeds(getMeds().filter(function (m) { return m.id !== entry.home.id; }));
+    if (entry.fav) saveFavorites(getFavorites().filter(function (f) { return f.id !== entry.fav.id; }));
+  }
+  function entryAlarmOn(entry) { return !!(entry.home && notifOn() && medNotifOn(entry.home.id)); }
 
   function dosesForMed(medId) {
     return getDoses().filter(function (d) { return d.medId === medId; });
@@ -2177,6 +2233,219 @@
   }
 
   /* ===== 설정 ===== */
+  /* ===== 약 관리 레이어 팝업 ===== */
+  var sheetEl = null;      // 떠 있는 팝업 요소
+  var mmFilter = 'all';    // 목록 필터: all | home | fav | alarm
+  var mmName = null;       // '약 정보'에서 보고 있는 약 이름
+
+  function closeSheet() {
+    if (sheetEl && sheetEl.parentNode) sheetEl.parentNode.removeChild(sheetEl);
+    sheetEl = null;
+    mmName = null;
+  }
+  function showSheet(inner, bind) {
+    if (!sheetEl) {
+      sheetEl = document.createElement('div');
+      sheetEl.className = 'sheet-overlay';
+      document.body.appendChild(sheetEl);
+      sheetEl.addEventListener('click', function (e) { if (e.target === sheetEl) closeSheet(); });
+    }
+    sheetEl.innerHTML = '<div class="sheet" role="dialog" aria-modal="true">' +
+      '<div class="sheet-grab"></div>' + inner + '</div>';
+    sheetEl.querySelectorAll('[data-sheet-close]').forEach(function (b) {
+      b.addEventListener('click', closeSheet);
+    });
+    if (bind) bind();
+  }
+
+  // 알림 라벨에 쓸 짧은 시각 — '매일 21:00' / '내일 17:20'
+  function alarmLabelText(med) {
+    if (alarmMode(med) === 'daily') return '매일 ' + alarmTime(med);
+    var due = nextDueFor(med);
+    if (!due) return '기록 대기';
+    var d = new Date(due), hm = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    var k = dateKey(due), t = todayKey();
+    if (k === addDays(t, 1)) return '내일 ' + hm;
+    if (k !== t) return fmtKeyShort(k).replace(' · 오늘', '') + ' ' + hm;
+    return hm;
+  }
+  function medMetaText(med) {
+    return med.type === 'check'
+      ? '복용 체크' + (med.maxPerDay ? ' · 최대 ' + med.maxPerDay + med.unit : '')
+      : '간격 ' + med.intervalHours + '시간 · 최대 ' + med.maxPerDay + med.unit;
+  }
+
+  function renderMedManager() {
+    var all = medEntries();
+    var counts = {
+      all: all.length,
+      home: all.filter(function (e) { return !!e.home; }).length,
+      fav: all.filter(function (e) { return !!e.fav; }).length,
+      alarm: all.filter(entryAlarmOn).length
+    };
+    if (mmFilter !== 'all' && !counts[mmFilter]) mmFilter = 'all';
+    var list = all.filter(function (e) {
+      if (mmFilter === 'home') return !!e.home;
+      if (mmFilter === 'fav') return !!e.fav;
+      if (mmFilter === 'alarm') return entryAlarmOn(e);
+      return true;
+    });
+
+    function chip(key, label) {
+      return '<button class="mchip' + (mmFilter === key ? ' active' : '') + '" data-mmf="' + key + '">' +
+        label + '<span class="n">' + counts[key] + '</span></button>';
+    }
+
+    var html =
+      '<div class="sheet-head"><h3>약 관리</h3>' +
+        '<button class="text-btn" data-sheet-close>닫기</button></div>' +
+      '<div class="mchips">' +
+        chip('all', '전체') + chip('home', '홈') +
+        chip('fav', ICON.star) + chip('alarm', ICON.bell) +
+      '</div>' +
+      '<div class="sheet-body">';
+
+    if (!list.length) {
+      html += '<p class="settings-note">여기에 해당하는 약이 없어요.</p>';
+    }
+    list.forEach(function (e) {
+      var med = e.home || e.fav;
+      var labs = '';
+      if (e.fav) labs += '<span class="mm-lab star">' + ICON.star + '</span>';
+      if (entryAlarmOn(e)) {
+        labs += '<span class="mm-lab bell">' + ICON.bell + alarmLabelText(e.home) + '</span>';
+      }
+      html +=
+        '<button class="mm-row" data-mm="' + esc(e.name) + '">' +
+          '<span class="mm-txt">' +
+            '<span class="mm-name">' + esc(e.name) + '</span>' +
+            (labs
+              ? '<span class="mm-labs">' + labs + '</span>'
+              : '<span class="mm-sub">' + medMetaText(med) + '</span>') +
+          '</span>' +
+          '<span class="mm-chev">' + ICON.chevronR + '</span>' +
+        '</button>';
+    });
+
+    html += '<button class="mm-add" id="mm-add">+ 약 추가</button></div>';
+
+    showSheet(html, function () {
+      sheetEl.querySelectorAll('[data-mmf]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          mmFilter = b.getAttribute('data-mmf');
+          renderMedManager();
+        });
+      });
+      sheetEl.querySelectorAll('[data-mm]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          mmName = b.getAttribute('data-mm');
+          renderMedInfo();
+        });
+      });
+      document.getElementById('mm-add').addEventListener('click', function () {
+        closeSheet();
+        go('medForm', { favMode: true, returnTo: 'settings' });
+      });
+    });
+  }
+
+  function renderMedInfo() {
+    var e = entryByName(mmName);
+    if (!e) { renderMedManager(); return; }
+    var med = e.home || e.fav;
+    var aOn = entryAlarmOn(e), mode = e.home ? alarmMode(e.home) : 'interval';
+
+    function trow(key, title, desc, on, disabled) {
+      return '<button class="mi-row' + (disabled ? ' off' : '') + '" data-mi="' + key + '"' +
+          (disabled ? ' disabled' : '') + '>' +
+        '<span><span class="mi-t">' + title + '</span>' +
+          (desc ? '<span class="mi-d">' + desc + '</span>' : '') + '</span>' +
+        '<span class="switch' + (on ? ' on' : '') + '"></span></button>';
+    }
+
+    var alarmDesc = !e.home ? '홈에 올려야 켤 수 있어요'
+      : (!notifOn() ? '설정에서 알림 받기를 먼저 켜주세요' : '');
+
+    var html =
+      '<div class="sheet-head">' +
+        '<button class="text-btn" id="mi-back">목록</button>' +
+        '<button class="text-btn" data-sheet-close>닫기</button></div>' +
+      '<h3 class="mi-name">' + esc(e.name) + '</h3>' +
+      '<p class="mi-meta">' + medMetaText(med) + '</p>' +
+      '<div class="mi-card">' +
+        trow('home', '홈에 표시',
+          e.home ? '홈 화면에서 기록해요' : '켜면 예전 복용 이력이 그대로 이어져요', !!e.home, false) +
+        trow('fav', ICON.star + '즐겨찾기', '약 추가할 때 맨 위에', !!e.fav, !e.home && !!e.fav) +
+        trow('alarm', ICON.bell + '복약 알림', alarmDesc, aOn, !e.home || !notifOn());
+
+    if (aOn) {
+      html += '<div class="mi-opt"><div class="mi-optlab">알림 시각</div><div class="mi-optrow">' +
+        '<div class="seg">' +
+          '<button type="button" data-mimode="interval"' + (mode === 'interval' ? ' class="active"' : '') + '>간격 기준</button>' +
+          '<button type="button" data-mimode="daily"' + (mode === 'daily' ? ' class="active"' : '') + '>매일 시각</button>' +
+        '</div>' +
+        (mode === 'daily'
+          ? '<input type="time" id="mi-time" value="' + esc(alarmTime(e.home)) + '">' : '') +
+        '</div>';
+      var due = nextDueFor(e.home);
+      html += '<p class="mi-next">' + (due
+        ? esc(fmtWhenKo(due)) + '에 알려드려요'
+        : '먹은 기록이 생기면 알림을 잡아요') + '</p></div>';
+    }
+
+    html += '</div><div class="mi-act">' +
+      (e.home ? '<button class="pill-btn secondary" id="mi-edit">수정</button>' : '') +
+      '<button class="pill-btn secondary danger" id="mi-del">삭제</button></div>';
+
+    showSheet(html, function () {
+      document.getElementById('mi-back').addEventListener('click', function () {
+        mmName = null;
+        renderMedManager();
+      });
+      sheetEl.querySelectorAll('[data-mi]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var cur = entryByName(mmName);
+          if (!cur) return;
+          var key = b.getAttribute('data-mi');
+          if (key === 'home') setEntryHome(cur, !cur.home);
+          else if (key === 'fav') toggleEntryFav(cur);
+          else if (key === 'alarm' && cur.home) toggleMedNotif(cur.home.id);
+          renderMedInfo();
+          renderSettings();
+        });
+      });
+      sheetEl.querySelectorAll('[data-mimode]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (!e.home) return;
+          patchMed(e.home.id, { alarmMode: b.getAttribute('data-mimode') });
+          renderMedInfo();
+        });
+      });
+      var t = document.getElementById('mi-time');
+      if (t) {
+        t.addEventListener('change', function () {
+          if (!/^\d{2}:\d{2}/.test(t.value)) return;
+          patchMed(e.home.id, { alarmTime: t.value.slice(0, 5) });
+          renderMedInfo();
+        });
+      }
+      var ed = document.getElementById('mi-edit');
+      if (ed) {
+        ed.addEventListener('click', function () {
+          closeSheet();
+          go('medForm', { editMedId: e.home.id, returnTo: 'settings' });
+        });
+      }
+      document.getElementById('mi-del').addEventListener('click', function () {
+        if (!window.confirm('"' + e.name + '"을(를) 삭제할까요?\n복용 이력은 남아있어요.')) return;
+        deleteEntry(e);
+        mmName = null;
+        renderMedManager();
+        renderSettings();
+      });
+    });
+  }
+
   function renderSettings() {
     app.className = '';
 
@@ -2191,42 +2460,18 @@
         ? '복용 체크' + (med.maxPerDay ? ' · 1일 최대 ' + med.maxPerDay + med.unit : '')
         : '최소 간격 ' + med.intervalHours + '시간 · 1일 최대 ' + med.maxPerDay + med.unit;
     }
-    // 약 관리 — 홈에 있는 약(수정/삭제)과 홈에 추가할 때 고를 후보를 한 묶음으로
-    html += '<div class="settings-group"><h2>약 관리</h2>';
-    html += '<p class="settings-sub">홈에 있는 약</p>';
-    var meds = getMeds();
-    if (!meds.length) {
-      html += '<p class="settings-note">트래킹 중인 약이 없어요. 홈 화면에서 추가하세요.</p>';
-    }
-    meds.forEach(function (med) {
-      html +=
-        '<div class="med-row">' +
-          '<div>' +
-            '<div class="r-name">' + esc(med.name) + '</div>' +
-            '<div class="r-meta">' + medMeta(med) + '</div>' +
-          '</div>' +
-          '<div class="r-actions">' +
-            '<button data-edit="' + esc(med.id) + '">수정</button>' +
-            '<button class="danger" data-del="' + esc(med.id) + '">삭제</button>' +
-          '</div>' +
-        '</div>';
-    });
-    // 자주 찾는 약 = 홈에서 '약 추가'할 때 고르는 후보 목록 (여기 추가해도 홈엔 안 뜸)
-    html += '<p class="settings-sub">자주 찾는 약' + helpBtn('fav') + '</p>';
-    var favs = getFavorites();
-    favs.forEach(function (f) {
-      html +=
-        '<div class="med-row">' +
-          '<div>' +
-            '<div class="r-name">' + esc(f.name) + '</div>' +
-            '<div class="r-meta">' + medMeta(f) + '</div>' +
-          '</div>' +
-          '<div class="r-actions">' +
-            '<button class="danger" data-fav-del="' + esc(f.id) + '">삭제</button>' +
-          '</div>' +
-        '</div>';
-    });
-    html += '<button class="pill-btn secondary" id="add-fav">+ 자주 찾는 약 추가</button></div>';
+    // 약 — 목록·즐겨찾기·약별 알림은 전부 '약 관리' 팝업 안에서 (설정이 길어지지 않도록)
+    var mmAll = medEntries();
+    var mmSum = [
+      '홈 ' + mmAll.filter(function (e) { return !!e.home; }).length + '개',
+      '즐겨찾기 ' + mmAll.filter(function (e) { return !!e.fav; }).length + '개',
+      '알림 ' + mmAll.filter(entryAlarmOn).length + '개'
+    ].join(' · ');
+    html += '<div class="settings-group"><h2>약</h2>' +
+      '<button class="link-row" id="open-medmgr">' +
+        '<div><div class="m-title">약 관리</div><div class="m-desc">' + mmSum + '</div></div>' +
+        '<span class="link-chev">' + ICON.chevronR + '</span>' +
+      '</button></div>';
 
     // 화면 테마: 시스템 / 라이트 / 다크
     var curTheme = getTheme();
@@ -2263,37 +2508,7 @@
           '<span class="switch' + (nOn ? ' on' : '') + '"></span>' +
         '</button>';
       if (nOn) {
-        var alarmMeds = getMeds();
-        if (!alarmMeds.length) {
-          html += '<p class="settings-note">트래킹 중인 약이 없어요.</p>';
-        } else {
-          html += '<p class="settings-sub">알림 받을 약</p>';
-          alarmMeds.forEach(function (med) {
-            var mOn = medNotifOn(med.id), mode = alarmMode(med), due = mOn ? nextDueFor(med) : null;
-            html += '<div class="alarm-card">' +
-              '<button class="toggle-row" data-notif-med="' + esc(med.id) + '">' +
-                '<div><div class="m-title">' + esc(med.name) + '</div>' +
-                '<div class="m-desc">' + (!mOn ? '알림 꺼짐'
-                  : (due ? esc(fmtWhenKo(due)) + ' 알림' : '먹은 기록이 생기면 알림')) +
-                '</div></div>' +
-                '<span class="switch' + (mOn ? ' on' : '') + '"></span>' +
-              '</button>';
-            if (mOn) {
-              html += '<div class="alarm-opt">' +
-                '<div class="seg">' +
-                  '<button type="button" data-amode="interval" data-mid="' + esc(med.id) + '"' +
-                    (mode === 'interval' ? ' class="active"' : '') + '>간격 기준</button>' +
-                  '<button type="button" data-amode="daily" data-mid="' + esc(med.id) + '"' +
-                    (mode === 'daily' ? ' class="active"' : '') + '>매일 시각</button>' +
-                '</div>' +
-                (mode === 'daily'
-                  ? '<input type="time" data-atime="' + esc(med.id) + '" value="' + esc(alarmTime(med)) + '">'
-                  : '') +
-              '</div>';
-            }
-            html += '</div>';
-          });
-        }
+        html += '<p class="settings-note">약별 알림과 시각은 <b>약 관리</b>에서 정해요.</p>';
       }
       html += '<p class="settings-status" id="notif-status"></p>';
     }
@@ -2370,24 +2585,10 @@
         });
       });
     }
-    app.querySelectorAll('[data-notif-med]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        toggleMedNotif(btn.getAttribute('data-notif-med'));
-        renderSettings();
-      });
-    });
-    app.querySelectorAll('[data-amode]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        patchMed(btn.getAttribute('data-mid'), { alarmMode: btn.getAttribute('data-amode') });
-        renderSettings();
-      });
-    });
-    app.querySelectorAll('[data-atime]').forEach(function (inp) {
-      inp.addEventListener('change', function () {
-        if (!/^\d{2}:\d{2}/.test(inp.value)) return;
-        patchMed(inp.getAttribute('data-atime'), { alarmTime: inp.value.slice(0, 5) });
-        renderSettings();
-      });
+    document.getElementById('open-medmgr').addEventListener('click', function () {
+      mmFilter = 'all';
+      mmName = null;
+      renderMedManager();
     });
     document.getElementById('export-data').addEventListener('click', exportData);
     var impFile = document.getElementById('import-file');
@@ -2476,33 +2677,6 @@
       });
     });
 
-    document.getElementById('add-fav').addEventListener('click', function () {
-      go('medForm', { editMedId: null, favMode: true, returnTo: 'settings' });
-    });
-    app.querySelectorAll('[data-fav-del]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var id = btn.getAttribute('data-fav-del');
-        var f = getFavorites().filter(function (x) { return x.id === id; })[0];
-        if (f && window.confirm('자주 찾는 약에서 "' + f.name + '"을(를) 뺄까요?')) {
-          saveFavorites(getFavorites().filter(function (x) { return x.id !== id; }));
-          renderSettings();
-        }
-      });
-    });
-    app.querySelectorAll('[data-edit]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        go('medForm', { editMedId: btn.getAttribute('data-edit'), returnTo: 'settings' });
-      });
-    });
-    app.querySelectorAll('[data-del]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var med = medById(btn.getAttribute('data-del'));
-        if (med && window.confirm('"' + med.name + '"을(를) 삭제할까요?\n복용 이력은 남아있어요.')) {
-          saveMeds(getMeds().filter(function (mm) { return mm.id !== med.id; }));
-          renderSettings();
-        }
-      });
-    });
   }
 
   /* ===== 약 추가/수정 폼 ===== */
@@ -2746,7 +2920,12 @@
     grip: lucide('<circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/>'),
     // chevron-up / down (lucide) — 순서 이동
     arrowUp: lucide('<path d="m18 15-6-6-6 6"/>'),
-    arrowDown: lucide('<path d="m6 9 6 6 6-6"/>')
+    arrowDown: lucide('<path d="m6 9 6 6 6-6"/>'),
+    // 약 관리 라벨용 — 별은 채워서, 종은 선으로
+    star: '<svg class="lucide" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">' +
+      '<polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6"/></svg>',
+    bell: lucide('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
+    chevronR: lucide('<path d="m9 18 6-6-6-6"/>')
   };
 
   function bottomNavHtml(active) {

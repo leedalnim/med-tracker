@@ -918,6 +918,7 @@ input, select {
   padding: 8px 13px;
   background: transparent;
 }
+.mchip .lucide { width: 14px; height: 14px; }
 .mchip .n {
   font-size: 11px;
   font-weight: 800;
@@ -1130,39 +1131,173 @@ input, select {
   box-shadow: var(--shadow);
   padding: 17px 20px;
 }
-/* 약별 알림 — 토글과 시각 설정을 한 카드로 */
-.alarm-card {
+/* ===== 약 관리 레이어 팝업 ===== */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.38);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+}
+.sheet {
+  width: 100%;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 26px 26px 0 0;
+  padding: 8px 20px calc(18px + env(safe-area-inset-bottom));
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.22);
+}
+.sheet-grab {
+  width: 38px; height: 4px;
+  border-radius: 3px;
+  background: var(--line);
+  margin: 0 auto 12px;
+  flex-shrink: 0;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.sheet-head h3 { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; }
+.sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; padding: 0 4px 2px; }
+
+/* 목록 행 — 이름이 맨 왼쪽, 아래에 라벨 */
+.mm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
   background: var(--card);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
-  margin-top: 8px;
-  overflow: hidden;
+  padding: 12px 12px 12px 16px;
+  margin-bottom: 8px;
 }
-.alarm-card .toggle-row { background: transparent; box-shadow: none; border-radius: 0; }
-.alarm-opt {
-  border-top: 1px solid var(--line);
-  padding: 12px 20px 14px;
+.mm-txt { flex: 1; min-width: 0; }
+.mm-name {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mm-sub {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mm-labs { display: flex; gap: 5px; align-items: center; margin-top: 5px; }
+.mm-lab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  border-radius: 999px;
+  padding: 4px 8px 4px 7px;
+  flex-shrink: 0;
+}
+.mm-lab .lucide { width: 11px; height: 11px; }
+.mm-lab.star { background: var(--line); color: var(--text-dim); padding: 4px 6px; }
+.mm-lab.bell { background: var(--accent-soft); color: var(--accent); }
+.mm-chev { color: var(--line); display: flex; flex-shrink: 0; }
+.mm-chev .lucide { width: 18px; height: 18px; }
+.mm-add {
+  width: 100%;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 13px;
+  margin-top: 2px;
+}
+
+/* 약 정보 */
+.mi-name { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+.mi-meta { font-size: 12.5px; color: var(--text-dim); margin: 4px 0 14px; }
+.mi-card {
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 0 18px;
+  margin-bottom: 10px;
+}
+.mi-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
 }
-.alarm-opt .seg { flex: 1; min-width: 0; }
-.alarm-opt .seg button { padding: 9px 0; font-size: 12.5px; }
-.alarm-opt input[type="time"] {
+.mi-row:last-child { border-bottom: none; }
+.mi-row.off { opacity: 0.45; }
+.mi-t { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; }
+.mi-t .lucide { width: 13px; height: 13px; }
+.mi-d { display: block; font-size: 11.5px; color: var(--text-dim); margin-top: 3px; }
+.mi-opt { border-top: 1px solid var(--line); padding: 13px 0 15px; }
+.mi-optlab { font-size: 11.5px; font-weight: 700; color: var(--text-dim); margin-bottom: 8px; }
+.mi-optrow { display: flex; align-items: center; gap: 8px; }
+.mi-optrow .seg { flex: 1; min-width: 0; }
+.mi-optrow .seg button { padding: 10px 0; font-size: 13px; }
+.mi-optrow input[type="time"] {
   -webkit-appearance: none;
   appearance: none;
   flex-shrink: 0;
   background: var(--bg);
   border: 1.5px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: 9px 11px;
   font-family: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text);
   outline: none;
 }
-.alarm-opt input[type="time"]:focus { border-color: var(--text); }
+.mi-optrow input[type="time"]:focus { border-color: var(--text); }
+.mi-next { font-size: 12px; font-weight: 700; color: var(--accent); margin-top: 10px; }
+.mi-act { display: flex; gap: 8px; flex-shrink: 0; }
+.mi-act .pill-btn { flex: 1; }
+.mi-act .pill-btn.danger { color: var(--accent); }
+
+/* 설정에서 팝업을 여는 줄 */
+.link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 17px 20px;
+}
+.link-chev { color: var(--line); display: flex; }
+.link-chev .lucide { width: 18px; height: 18px; }
 /* 토글이 여러 줄 이어질 때 */
 .toggle-row + .toggle-row { margin-top: 8px; }
 .toggle-row[disabled] { opacity: 0.5; }
