@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v108';
+  var APP_VERSION = 'v109';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -2363,6 +2363,28 @@
   }
 
   var miSaved = false; // 방금 알림 시각을 바꿨는지 (다시 그린 뒤 '저장했어요'를 잠깐 보여줌)
+  var saveTimer = null;
+  // '저장했어요'를 잠깐 보여준다
+  function flashSaved() {
+    var el = document.getElementById('mi-save');
+    if (!el) return;
+    el.textContent = '저장했어요';
+    el.className = 'mi-save ok';
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      var cur = document.getElementById('mi-save');
+      if (cur) { cur.textContent = '자동 저장'; cur.className = 'mi-save'; }
+      saveTimer = null;
+    }, 2000);
+  }
+  // 시각만 바뀐 경우 — 팝업을 다시 그리지 않고 '다음 알림'과 저장 표시만 고친다
+  function refreshAlarmBits(medId) {
+    var med = medById(medId);
+    var due = med ? nextDueFor(med) : null;
+    var when = sheetEl && sheetEl.querySelector('.mi-when');
+    if (when && due) when.innerHTML = ICON.clock + esc(fmtDueShort(due));
+    flashSaved();
+  }
   function renderMedInfo() {
     var e = entryByName(mmName);
     if (!e) { renderMedManager(); return; }
@@ -2449,16 +2471,7 @@
         });
       });
       // 저장 버튼이 없어도 바뀐 걸 알 수 있게 잠깐 '저장했어요'를 띄운다
-      var saveEl = document.getElementById('mi-save');
-      if (saveEl && miSaved) {
-        miSaved = false;
-        saveEl.textContent = '저장했어요';
-        saveEl.className = 'mi-save ok';
-        setTimeout(function () {
-          var cur = document.getElementById('mi-save');
-          if (cur) { cur.textContent = '자동 저장'; cur.className = 'mi-save'; }
-        }, 2000);
-      }
+      if (miSaved) { miSaved = false; flashSaved(); }
       sheetEl.querySelectorAll('[data-mimode]').forEach(function (b) {
         b.addEventListener('click', function () {
           if (!e.home) return;
@@ -2469,11 +2482,11 @@
       });
       var t = document.getElementById('mi-time');
       if (t) {
+        // 시각 입력은 다시 그리지 않는다 — iOS에서 시/분을 고르는 중에 피커가 닫혀버린다
         t.addEventListener('change', function () {
           if (!/^\d{2}:\d{2}/.test(t.value)) return;
           patchMed(e.home.id, { alarmTime: t.value.slice(0, 5) });
-          miSaved = true;
-          renderMedInfo();
+          refreshAlarmBits(e.home.id);
         });
       }
       var ed = document.getElementById('mi-edit');

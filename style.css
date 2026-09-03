@@ -1288,23 +1288,22 @@ input, select {
 }
 .mi-optlab {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 4px;
   font-size: 12px;
   font-weight: 700;
   color: var(--text-dim);
 }
-/* '자동 저장' 표시 — 바꾸면 잠깐 '저장했어요'로 바뀐다 */
+/* '자동 저장' 표시 — 배경 없이 글자만 (버튼처럼 보이지 않게) */
 .mi-save {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--text-dim);
-  background: var(--card);
-  border-radius: 999px;
-  padding: 2.5px 7px;
+  opacity: 0.7;
   white-space: nowrap;
 }
-.mi-save.ok { color: var(--accent-text); background: var(--accent); }
+.mi-save::before { content: '· '; }
+.mi-save.ok { color: var(--accent); opacity: 1; font-weight: 700; }
 /* 다음 알림 시각 — 헤더 오른쪽 */
 .mi-when {
   display: inline-flex;
