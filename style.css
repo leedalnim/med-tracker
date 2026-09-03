@@ -1281,14 +1281,42 @@ input, select {
 }
 .mi-opthead {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 9px;
 }
-.mi-optlab { font-size: 12px; font-weight: 700; color: var(--text-dim); }
-.mi-save { font-size: 10.5px; font-weight: 700; color: var(--text-dim); opacity: 0.75; }
-.mi-save.ok { color: var(--accent); opacity: 1; }
+.mi-optlab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+/* '자동 저장' 표시 — 바꾸면 잠깐 '저장했어요'로 바뀐다 */
+.mi-save {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--card);
+  border-radius: 999px;
+  padding: 2.5px 7px;
+  white-space: nowrap;
+}
+.mi-save.ok { color: var(--accent-text); background: var(--accent); }
+/* 다음 알림 시각 — 헤더 오른쪽 */
+.mi-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mi-when .lucide { width: 12px; height: 12px; }
 .mi-optrow { display: flex; align-items: center; gap: 8px; }
 .mi-optrow .seg { flex: 1; min-width: 0; }
 .mi-optrow .seg button { padding: 10px 0; font-size: 13px; background: var(--card); }

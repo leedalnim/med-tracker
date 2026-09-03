@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v107';
+  var APP_VERSION = 'v108';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -2274,6 +2274,14 @@
     if (k !== t) return fmtKeyShort(k).replace(' · 오늘', '') + ' ' + hm;
     return hm;
   }
+  // 헤더에 한 줄로 들어갈 짧은 표기 — '21:00' / '내일 09:15' / '9/5 21:00'
+  function fmtDueShort(ts) {
+    var d = new Date(ts), hm = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    var k = dateKey(ts), t = todayKey();
+    if (k === t) return hm;
+    if (k === addDays(t, 1)) return '내일 ' + hm;
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hm;
+  }
   function medMetaText(med) {
     return med.type === 'check'
       ? '복용 체크' + (med.maxPerDay ? ' · 최대 ' + med.maxPerDay + med.unit : '')
@@ -2397,9 +2405,13 @@
         trow('alarm', ICON.bell + '복약 알림', alarmDesc, aOn, !e.home || !notifOn());
 
     if (aOn) {
+      var mDue = nextDueFor(e.home);
       html += '<div class="mi-opt">' +
-        '<div class="mi-opthead"><span class="mi-optlab">알림 시각</span>' +
-          '<span class="mi-save" id="mi-save">바꾸면 바로 저장돼요</span></div>' +
+        '<div class="mi-opthead">' +
+          '<span class="mi-optlab">알림 시각' +
+            '<span class="mi-save" id="mi-save">자동 저장</span></span>' +
+          (mDue ? '<span class="mi-when">' + ICON.clock + esc(fmtDueShort(mDue)) + '</span>' : '') +
+        '</div>' +
         '<div class="mi-optrow">' +
         '<div class="seg">' +
           '<button type="button" data-mimode="interval"' + (mode === 'interval' ? ' class="active"' : '') + '>간격 기준</button>' +
@@ -2408,10 +2420,7 @@
         (mode === 'daily'
           ? '<input type="time" id="mi-time" value="' + esc(alarmTime(e.home)) + '">' : '') +
         '</div>';
-      var due = nextDueFor(e.home);
-      html += '<p class="mi-next">' + (due
-        ? esc(fmtWhenKo(due)) + '에 알려드려요'
-        : '먹은 기록이 생기면 알림을 잡아요') + '</p></div>';
+      html += (mDue ? '' : '<p class="mi-next">먹은 기록이 생기면 알림을 잡아요</p>') + '</div>';
     }
 
     html += '</div><div class="mi-act">' +
@@ -2447,7 +2456,7 @@
         saveEl.className = 'mi-save ok';
         setTimeout(function () {
           var cur = document.getElementById('mi-save');
-          if (cur) { cur.textContent = '바꾸면 바로 저장돼요'; cur.className = 'mi-save'; }
+          if (cur) { cur.textContent = '자동 저장'; cur.className = 'mi-save'; }
         }, 2000);
       }
       sheetEl.querySelectorAll('[data-mimode]').forEach(function (b) {
@@ -2961,7 +2970,8 @@
       '<polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6"/></svg>',
     bell: lucide('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
     chevronR: lucide('<path d="m9 18 6-6-6-6"/>'),
-    close: lucide('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>')
+    close: lucide('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+    clock: lucide('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>')
   };
 
   function bottomNavHtml(active) {
