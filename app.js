@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v105';
+  var APP_VERSION = 'v106';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -386,6 +386,8 @@
     notif: {
       title: '복약 알림',
       body: '<b>다음 복용 시각</b>이 되면 알림이 와요. 앱이 꺼져 있어도 잠금화면에 떠요.<br><br>' +
+            '여기선 이 기기에서 알림을 받을지만 정하고, ' +
+            '<b>약마다 알림을 켜고 시각을 정하는 건 약 관리</b>에서 해요.<br><br>' +
             '알림 시각은 <b>마지막으로 먹은 시각 + 간격</b>으로 계산해요. ' +
             '복용 체크 약은 마지막 복용 + 24시간이에요. 아직 한 번도 안 먹은 약은 기준이 없어서 알림이 안 가요.<br><br>' +
             '<b>홈 화면에 추가한 앱</b>에서만 켤 수 있어요 (사파리 탭에서는 iOS가 막아둬요).<br><br>' +
@@ -398,13 +400,16 @@
   }
   function showHelp(key) {
     var h = HELP[key];
-    if (!h) return;
+    if (h) showNote(h.title, h.body);
+  }
+  // 짧은 안내 레이어 — 도움말과 '왜 못 켜는지' 안내에 공용으로 쓴다
+  function showNote(title, body) {
     var wrap = document.createElement('div');
     wrap.className = 'help-overlay';
     wrap.innerHTML =
       '<div class="help-card" role="dialog" aria-modal="true">' +
-        '<h3>' + h.title + '</h3>' +
-        '<p>' + h.body + '</p>' +
+        '<h3>' + title + '</h3>' +
+        '<p>' + body + '</p>' +
         '<button class="pill-btn" data-help-close>확인</button>' +
       '</div>';
     function close() { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }
@@ -2298,7 +2303,7 @@
 
     var html =
       '<div class="sheet-head"><h3>약 관리</h3>' +
-        '<button class="text-btn" data-sheet-close>닫기</button></div>' +
+        '<button class="sheet-btn" data-sheet-close aria-label="닫기">' + ICON.close + '</button></div>' +
       '<div class="mchips">' +
         chip('all', '전체') + chip('home', '홈') +
         chip('fav', ICON.star) + chip('alarm', ICON.bell) +
@@ -2349,15 +2354,16 @@
     });
   }
 
+  var miSaved = false; // 방금 알림 시각을 바꿨는지 (다시 그린 뒤 '저장했어요'를 잠깐 보여줌)
   function renderMedInfo() {
     var e = entryByName(mmName);
     if (!e) { renderMedManager(); return; }
     var med = e.home || e.fav;
     var aOn = entryAlarmOn(e), mode = e.home ? alarmMode(e.home) : 'interval';
 
-    function trow(key, title, desc, on, disabled) {
-      return '<button class="mi-row' + (disabled ? ' off' : '') + '" data-mi="' + key + '"' +
-          (disabled ? ' disabled' : '') + '>' +
+    function trow(key, title, desc, on, locked) {
+      return '<button class="mi-row' + (locked ? ' off' : '') + '" data-mi="' + key + '"' +
+          (locked ? ' data-locked="1"' : '') + '>' +
         '<span><span class="mi-t">' + title + '</span>' +
           (desc ? '<span class="mi-d">' + desc + '</span>' : '') + '</span>' +
         '<span class="switch' + (on ? ' on' : '') + '"></span></button>';
@@ -2365,11 +2371,23 @@
 
     var alarmDesc = !e.home ? '홈에 올려야 켤 수 있어요'
       : (!notifOn() ? '설정에서 알림 받기를 먼저 켜주세요' : '');
+    var LOCK = {
+      alarm: !e.home
+        ? ['알림을 켤 수 없어요',
+           '<b>홈에 없는 약</b>이라 먹은 기록을 남길 수가 없어요. 기록이 없으면 언제 알릴지 계산할 수 없어서 알림도 못 켭니다.<br><br>' +
+           '위의 <b>홈에 표시</b>를 먼저 켜주세요.']
+        : ['알림 받기가 꺼져 있어요',
+           '이 기기에서 알림을 아직 안 켜셨어요.<br><br>' +
+           '<b>설정 &gt; 복약 알림 &gt; 알림 받기</b>를 먼저 켜시면, 여기서 약마다 알림을 정할 수 있어요.'],
+      fav: ['즐겨찾기를 끌 수 없어요',
+            '홈에도 없고 즐겨찾기에서도 빼면 목록에서 사라져요.<br><br>' +
+            '지우시려면 아래 <b>삭제</b>를 눌러주세요.']
+    };
 
     var html =
       '<div class="sheet-head">' +
-        '<button class="text-btn" id="mi-back">목록</button>' +
-        '<button class="text-btn" data-sheet-close>닫기</button></div>' +
+        '<button class="sheet-btn" id="mi-back" aria-label="목록으로">' + ICON.chevronL + '</button>' +
+        '<button class="sheet-btn" data-sheet-close aria-label="닫기">' + ICON.close + '</button></div>' +
       '<h3 class="mi-name">' + esc(e.name) + '</h3>' +
       '<p class="mi-meta">' + medMetaText(med) + '</p>' +
       '<div class="mi-card">' +
@@ -2379,7 +2397,10 @@
         trow('alarm', ICON.bell + '복약 알림', alarmDesc, aOn, !e.home || !notifOn());
 
     if (aOn) {
-      html += '<div class="mi-opt"><div class="mi-optlab">알림 시각</div><div class="mi-optrow">' +
+      html += '<div class="mi-opt">' +
+        '<div class="mi-opthead"><span class="mi-optlab">알림 시각</span>' +
+          '<span class="mi-save" id="mi-save">바꾸면 바로 저장돼요</span></div>' +
+        '<div class="mi-optrow">' +
         '<div class="seg">' +
           '<button type="button" data-mimode="interval"' + (mode === 'interval' ? ' class="active"' : '') + '>간격 기준</button>' +
           '<button type="button" data-mimode="daily"' + (mode === 'daily' ? ' class="active"' : '') + '>매일 시각</button>' +
@@ -2394,8 +2415,8 @@
     }
 
     html += '</div><div class="mi-act">' +
-      (e.home ? '<button class="pill-btn secondary" id="mi-edit">수정</button>' : '') +
-      '<button class="pill-btn secondary danger" id="mi-del">삭제</button></div>';
+      (e.home ? '<button class="pill-btn secondary" id="mi-edit">이름·간격 수정</button>' : '') +
+      '<button class="pill-btn secondary danger" id="mi-del">약 삭제</button></div>';
 
     showSheet(html, function () {
       document.getElementById('mi-back').addEventListener('click', function () {
@@ -2407,6 +2428,10 @@
           var cur = entryByName(mmName);
           if (!cur) return;
           var key = b.getAttribute('data-mi');
+          if (b.getAttribute('data-locked')) {
+            if (LOCK[key]) showNote(LOCK[key][0], LOCK[key][1]);
+            return;
+          }
           if (key === 'home') setEntryHome(cur, !cur.home);
           else if (key === 'fav') toggleEntryFav(cur);
           else if (key === 'alarm' && cur.home) toggleMedNotif(cur.home.id);
@@ -2414,10 +2439,22 @@
           renderSettings();
         });
       });
+      // 저장 버튼이 없어도 바뀐 걸 알 수 있게 잠깐 '저장했어요'를 띄운다
+      var saveEl = document.getElementById('mi-save');
+      if (saveEl && miSaved) {
+        miSaved = false;
+        saveEl.textContent = '저장했어요';
+        saveEl.className = 'mi-save ok';
+        setTimeout(function () {
+          var cur = document.getElementById('mi-save');
+          if (cur) { cur.textContent = '바꾸면 바로 저장돼요'; cur.className = 'mi-save'; }
+        }, 2000);
+      }
       sheetEl.querySelectorAll('[data-mimode]').forEach(function (b) {
         b.addEventListener('click', function () {
           if (!e.home) return;
           patchMed(e.home.id, { alarmMode: b.getAttribute('data-mimode') });
+          miSaved = true;
           renderMedInfo();
         });
       });
@@ -2426,6 +2463,7 @@
         t.addEventListener('change', function () {
           if (!/^\d{2}:\d{2}/.test(t.value)) return;
           patchMed(e.home.id, { alarmTime: t.value.slice(0, 5) });
+          miSaved = true;
           renderMedInfo();
         });
       }
@@ -2507,9 +2545,6 @@
             : (nOn ? '다음 복용 시각이 되면 알려줘요' : '이 기기에서 알림을 받아요')) + '</div></div>' +
           '<span class="switch' + (nOn ? ' on' : '') + '"></span>' +
         '</button>';
-      if (nOn) {
-        html += '<p class="settings-note">약별 알림과 시각은 <b>약 관리</b>에서 정해요.</p>';
-      }
       html += '<p class="settings-status" id="notif-status"></p>';
     }
     html += '</div>';
@@ -2925,7 +2960,8 @@
     star: '<svg class="lucide" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">' +
       '<polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 8.9 8.6"/></svg>',
     bell: lucide('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
-    chevronR: lucide('<path d="m9 18 6-6-6-6"/>')
+    chevronR: lucide('<path d="m9 18 6-6-6-6"/>'),
+    close: lucide('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>')
   };
 
   function bottomNavHtml(active) {

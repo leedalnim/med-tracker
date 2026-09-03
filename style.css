@@ -1169,6 +1169,19 @@ input, select {
   flex-shrink: 0;
 }
 .sheet-head h3 { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; }
+.sheet-btn {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sheet-btn .lucide { width: 18px; height: 18px; }
+.sheet-btn:active { transform: scale(0.92); }
 .sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; padding: 0 4px 2px; }
 
 /* 목록 행 — 이름이 맨 왼쪽, 아래에 라벨 */
@@ -1258,16 +1271,30 @@ input, select {
 .mi-t { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; }
 .mi-t .lucide { width: 13px; height: 13px; }
 .mi-d { display: block; font-size: 11.5px; color: var(--text-dim); margin-top: 3px; }
-.mi-opt { border-top: 1px solid var(--line); padding: 13px 0 15px; }
-.mi-optlab { font-size: 11.5px; font-weight: 700; color: var(--text-dim); margin-bottom: 8px; }
+.mi-opt {
+  background: var(--bg);
+  border-radius: 14px;
+  padding: 12px 14px 14px;
+  margin: 2px 0 16px;
+}
+.mi-opthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.mi-optlab { font-size: 12px; font-weight: 700; color: var(--text-dim); }
+.mi-save { font-size: 10.5px; font-weight: 700; color: var(--text-dim); opacity: 0.75; }
+.mi-save.ok { color: var(--accent); opacity: 1; }
 .mi-optrow { display: flex; align-items: center; gap: 8px; }
 .mi-optrow .seg { flex: 1; min-width: 0; }
-.mi-optrow .seg button { padding: 10px 0; font-size: 13px; }
+.mi-optrow .seg button { padding: 10px 0; font-size: 13px; background: var(--card); }
 .mi-optrow input[type="time"] {
   -webkit-appearance: none;
   appearance: none;
   flex-shrink: 0;
-  background: var(--bg);
+  background: var(--card);
   border: 1.5px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 9px 11px;
@@ -1279,6 +1306,7 @@ input, select {
 }
 .mi-optrow input[type="time"]:focus { border-color: var(--text); }
 .mi-next { font-size: 12px; font-weight: 700; color: var(--accent); margin-top: 10px; }
+.mi-opt .mi-next { margin-bottom: 0; }
 .mi-act { display: flex; gap: 8px; flex-shrink: 0; }
 .mi-act .pill-btn { flex: 1; }
 .mi-act .pill-btn.danger { color: var(--accent); }
@@ -1301,8 +1329,11 @@ input, select {
 /* 토글이 여러 줄 이어질 때 */
 .toggle-row + .toggle-row { margin-top: 8px; }
 .toggle-row[disabled] { opacity: 0.5; }
-.toggle-row .m-title { font-size: 15px; font-weight: 700; }
-.toggle-row .m-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+/* 토글 줄과 링크 줄(약 관리)은 같은 글자 규격을 쓴다 */
+.toggle-row .m-title,
+.link-row .m-title { font-size: 15px; font-weight: 700; }
+.toggle-row .m-desc,
+.link-row .m-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 .switch {
   width: 50px; height: 30px;
   border-radius: 999px;
