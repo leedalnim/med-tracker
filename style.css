@@ -1480,7 +1480,16 @@ input, select {
   line-height: 1.5;
   min-height: 1px;
 }
-.app-ver { opacity: 0.6; font-variant-numeric: tabular-nums; }
+.app-ver {
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 6px 0;
+}
 .settings-status.ok { color: var(--accent); }
 .settings-status.err { color: var(--accent); }
 .settings-group .backup-actions { margin-top: 10px; }

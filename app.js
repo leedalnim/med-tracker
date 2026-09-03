@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v110';
+  var APP_VERSION = 'v111';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -2238,6 +2238,14 @@
   }
 
   /* ===== 설정 ===== */
+  // 설정의 '업데이트 확인' — 새 버전이 있으면 서비스워커가 바뀌며 자동으로 새로고침된다
+  function forceUpdate(done) {
+    if (typeof swReg === 'undefined' || !swReg || !swReg.update) { done(false); return; }
+    try {
+      swReg.update().then(function () { done(true); }).catch(function () { done(false); });
+    } catch (e) { done(false); }
+  }
+
   /* ===== 약 관리 레이어 팝업 ===== */
   var sheetEl = null;      // 떠 있는 팝업 요소
   var mmFilter = 'all';    // 목록 필터: all | home | fav | alarm
@@ -2618,7 +2626,7 @@
 
     html +=
       '<p class="settings-note">이 앱은 등록한 간격·최대치·날짜로 계산만 해요. 복약 지도는 의사·약사와 상담하세요.<br>' +
-      '<span class="app-ver">버전 ' + APP_VERSION + '</span></p>';
+      '<button class="app-ver" id="app-update">버전 ' + APP_VERSION + ' · 업데이트 확인</button></p>';
 
     html += bottomNavHtml('settings');
     app.innerHTML = html;
@@ -2652,6 +2660,23 @@
           renderSettings();
           var st2 = document.getElementById('notif-status');
           if (st2 && !ok) st2.textContent = msg;
+        });
+      });
+    }
+    var updBtn = document.getElementById('app-update');
+    if (updBtn) {
+      updBtn.addEventListener('click', function () {
+        updBtn.textContent = '확인 중…';
+        forceUpdate(function (ok) {
+          setTimeout(function () {
+            var el = document.getElementById('app-update');
+            if (!el) return; // 새 버전이 잡히면 자동 새로고침되므로 여기까지 안 온다
+            el.textContent = '버전 ' + APP_VERSION + (ok ? ' · 최신이에요' : ' · 확인할 수 없어요');
+            setTimeout(function () {
+              var e2 = document.getElementById('app-update');
+              if (e2) e2.textContent = '버전 ' + APP_VERSION + ' · 업데이트 확인';
+            }, 2500);
+          }, 1200);
         });
       });
     }
