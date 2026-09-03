@@ -1266,7 +1266,9 @@ input, select {
   border-bottom: 1px solid var(--line);
   background: transparent;
 }
-.mi-row:last-child { border-bottom: none; }
+.mi-row:last-child,
+/* 알림 시각 회색 박스가 바로 뒤에 오면 구분선이 겹쳐 보인다 */
+.mi-row:has(+ .mi-opt) { border-bottom: none; }
 .mi-row.off { opacity: 0.45; }
 .mi-t { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; }
 .mi-t .lucide { width: 13px; height: 13px; }
