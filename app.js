@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v109';
+  var APP_VERSION = 'v110';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -2253,7 +2253,17 @@
       sheetEl = document.createElement('div');
       sheetEl.className = 'sheet-overlay';
       document.body.appendChild(sheetEl);
-      sheetEl.addEventListener('click', function (e) { if (e.target === sheetEl) closeSheet(); });
+      // 배경을 탭하면 닫되, 시각 피커를 조작하는 탭까지 닫히지 않도록 조건을 좁힌다
+      var downOnBackdrop = false;
+      sheetEl.addEventListener('pointerdown', function (e) { downOnBackdrop = (e.target === sheetEl); });
+      sheetEl.addEventListener('click', function (e) {
+        var wasDown = downOnBackdrop;
+        downOnBackdrop = false;
+        if (e.target !== sheetEl || !wasDown) return;
+        var tm = document.getElementById('mi-time');
+        if (tm && document.activeElement === tm) { tm.blur(); return; }
+        closeSheet();
+      });
     }
     sheetEl.innerHTML = '<div class="sheet" role="dialog" aria-modal="true">' +
       '<div class="sheet-grab"></div>' + inner + '</div>';
@@ -2482,12 +2492,15 @@
       });
       var t = document.getElementById('mi-time');
       if (t) {
-        // 시각 입력은 다시 그리지 않는다 — iOS에서 시/분을 고르는 중에 피커가 닫혀버린다
-        t.addEventListener('change', function () {
+        // iOS 시각 피커는 시/분을 고를 때마다 change가 난다.
+        // 그때 화면을 건드리면 피커가 닫히므로, 열려 있는 동안엔 값만 조용히 저장한다.
+        function commitTime() {
           if (!/^\d{2}:\d{2}/.test(t.value)) return;
           patchMed(e.home.id, { alarmTime: t.value.slice(0, 5) });
-          refreshAlarmBits(e.home.id);
-        });
+          if (document.activeElement !== t) refreshAlarmBits(e.home.id);
+        }
+        t.addEventListener('change', commitTime);
+        t.addEventListener('blur', commitTime);
       }
       var ed = document.getElementById('mi-edit');
       if (ed) {
