@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v112';
+  var APP_VERSION = 'v113';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -679,7 +679,10 @@
         med_id: med.id,
         title: med.name,
         body: med.type === 'check' ? '오늘 복용할 시간이에요' : '이제 드셔도 돼요',
-        due_at: new Date(due).toISOString()
+        due_at: new Date(due).toISOString(),
+        // 매일 정해진 시각이면 서버가 보낸 뒤 다음 날 것을 스스로 잡는다.
+        // (간격 기준은 '언제 먹었는지'에 따라 달라져서 서버가 계산할 수 없다)
+        repeat_daily: alarmMode(med) === 'daily'
       });
     });
     return out;

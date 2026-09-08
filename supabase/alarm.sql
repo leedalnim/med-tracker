@@ -20,14 +20,18 @@ revoke all on public.med_push from anon, authenticated;
 
 -- ===== 2. 예약된 알림 (약 하나당 한 줄) =====
 create table if not exists public.med_alarm (
-  key     uuid not null,
-  med_id  text not null,
-  title   text not null,
-  body    text not null,
-  due_at  timestamptz not null,
-  sent_at timestamptz,
+  key          uuid not null,
+  med_id       text not null,
+  title        text not null,
+  body         text not null,
+  due_at       timestamptz not null,
+  sent_at      timestamptz,
+  -- 매일 정해진 시각 알림이면 true. 발송 뒤 서버가 다음 날로 옮긴다
+  -- (앱을 열어야만 다음 알림이 잡히던 문제를 없애기 위함)
+  repeat_daily boolean not null default false,
   primary key (key, med_id)
 );
+alter table public.med_alarm add column if not exists repeat_daily boolean not null default false;
 create index if not exists med_alarm_due_idx on public.med_alarm (due_at) where sent_at is null;
 
 alter table public.med_alarm enable row level security;
@@ -82,12 +86,13 @@ begin
 
   delete from med_alarm where key = p_key;
 
-  insert into med_alarm (key, med_id, title, body, due_at)
+  insert into med_alarm (key, med_id, title, body, due_at, repeat_daily)
   select p_key,
          left(a ->> 'med_id', 64),
          left(a ->> 'title', 80),
          left(a ->> 'body', 120),
-         (a ->> 'due_at')::timestamptz
+         (a ->> 'due_at')::timestamptz,
+         coalesce((a ->> 'repeat_daily')::boolean, false)
   from jsonb_array_elements(p_alarms) a
   where a ->> 'med_id' is not null
     and a ->> 'title' is not null

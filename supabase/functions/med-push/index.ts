@@ -20,7 +20,10 @@ const CRON_SECRET = Deno.env.get('MED_CRON_SECRET') ?? '';
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
-type Alarm = { key: string; med_id: string; title: string; body: string; due_at: string };
+type Alarm = {
+  key: string; med_id: string; title: string; body: string;
+  due_at: string; repeat_daily: boolean;
+};
 type Sub = { endpoint: string; key: string; p256dh: string; auth: string };
 
 function rest(path: string, init: RequestInit = {}) {
@@ -71,7 +74,7 @@ Deno.serve(async (req) => {
   const nowIso = new Date().toISOString();
   const dueRes = await rest(
     `med_alarm?sent_at=is.null&due_at=lte.${encodeURIComponent(nowIso)}` +
-    `&select=key,med_id,title,body,due_at&limit=200`,
+    `&select=key,med_id,title,body,due_at,repeat_daily&limit=200`,
   );
   if (!dueRes.ok) {
     return new Response(JSON.stringify({ error: await dueRes.text() }), { status: 500 });
@@ -106,10 +109,22 @@ Deno.serve(async (req) => {
     }
     if (anyOk) sent++;
 
-    // 구독이 하나도 없거나 만료됐어도 '보냄'으로 닫는다 — 안 그러면 매분 다시 시도한다
+    // 매일 알림은 여기서 바로 다음 날로 옮긴다.
+    // 앱을 열어야만 다음 예약이 잡히던 문제를 없애기 위함 — 며칠 앱을 안 열어도 계속 온다.
+    // (앱이 나중에 동기화하면 정확한 시각으로 다시 덮어쓴다)
+    let patch: Record<string, unknown>;
+    if (a.repeat_daily) {
+      const next = new Date(new Date(a.due_at).getTime() + 24 * 3600 * 1000);
+      // 여러 날 밀려 있었다면 다가오는 가장 이른 시각까지 당겨온다
+      while (next.getTime() <= Date.now()) next.setTime(next.getTime() + 24 * 3600 * 1000);
+      patch = { due_at: next.toISOString(), sent_at: null };
+    } else {
+      // 간격 기준은 다음 복용 기록이 있어야 계산되므로 '보냄'으로 닫는다
+      patch = { sent_at: new Date().toISOString() };
+    }
     await rest(
       `med_alarm?key=eq.${a.key}&med_id=eq.${encodeURIComponent(a.med_id)}`,
-      { method: 'PATCH', body: JSON.stringify({ sent_at: new Date().toISOString() }) },
+      { method: 'PATCH', body: JSON.stringify(patch) },
     );
   }
 
@@ -119,7 +134,10 @@ Deno.serve(async (req) => {
 
   // 오래된 기록 정리 (하루에 몇 줄 수준이라 여기서 같이 처리)
   const old = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-  await rest(`med_alarm?due_at=lt.${encodeURIComponent(old)}`, { method: 'DELETE' });
+  await rest(
+    `med_alarm?due_at=lt.${encodeURIComponent(old)}&repeat_daily=is.false`,
+    { method: 'DELETE' },
+  );
 
   return Response.json({ due: due.length, sent, removed: gone.length });
 });
