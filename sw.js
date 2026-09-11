@@ -1,5 +1,5 @@
 /* 복약 트래커 서비스워커 — 오프라인 캐싱 */
-var CACHE_NAME = 'med-tracker-v113';
+var CACHE_NAME = 'med-tracker-v114';
 var ASSETS = [
   './',
   './index.html',
@@ -53,6 +53,18 @@ self.addEventListener('push', function (event) {
       // tag에 약 id가 들어온다 — 눌렀을 때 그 약 화면으로 바로 보내려고 같이 넘긴다
       data: { url: data.url || './', med: data.tag || null }
     })
+  );
+});
+
+/* 브라우저가 구독을 갱신하면 즉시 다시 만들어 둔다.
+   서버 등록은 앱이 다음에 열릴 때 ensurePushRegistered()가 맡는다. */
+self.addEventListener('pushsubscriptionchange', function (event) {
+  var old = event.oldSubscription || null;
+  var key = old && old.options && old.options.applicationServerKey;
+  if (!key) return;
+  event.waitUntil(
+    self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+      .catch(function () { /* 다음에 앱이 열릴 때 다시 시도된다 */ })
   );
 });
 

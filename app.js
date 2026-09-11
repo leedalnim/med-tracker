@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v113';
+  var APP_VERSION = 'v114';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -17,7 +17,7 @@
   // 이 기기에서만 의미가 있는 설정 — 백업 대상도 아니고, 바뀌어도 클라우드 업로드를 부르지 않음
   var LOCAL_ONLY = [
     'mt.cloudKey', 'mt.cloudOn', 'mt.cloudAt', 'mt.dataAt',
-    'mt.notifOn', 'mt.notifMeds', 'mt.pushSub'
+    'mt.notifOn', 'mt.notifMeds', 'mt.pushSub', 'mt.pushAt'
   ];
   // 값이 바뀌면 서버에 예약된 알림을 다시 계산해야 하는 항목
   var ALARM_KEYS = ['mt.meds', 'mt.doses', 'mt.notifOn', 'mt.notifMeds'];
@@ -63,7 +63,8 @@
     dataAt: 'mt.dataAt',      // 마지막 데이터 변경 시각(ms) — cloudAt보다 최신이면 아직 못 올린 상태
     notifOn: 'mt.notifOn',    // 이 기기에서 복약 알림 사용 여부 (기기별, 백업 안 됨)
     notifMeds: 'mt.notifMeds',// 알림을 켠 약 id 목록
-    pushSub: 'mt.pushSub'     // 서버에 등록해둔 푸시 구독 endpoint (재등록 판단용)
+    pushSub: 'mt.pushSub',    // 서버에 등록해둔 푸시 구독 endpoint (재등록 판단용)
+    pushAt: 'mt.pushAt'       // 마지막으로 구독을 서버에 올린 시각(ms)
   };
 
   /* ===== 클라우드 백업 설정 =====
@@ -583,12 +584,7 @@
           });
         });
       }).then(function (sub) {
-        cloudRpc('med_push_sub', {
-          p_key: ensureCloudKey(),
-          p_endpoint: sub.endpoint,
-          p_p256dh: subKey(sub, 'p256dh'),
-          p_auth: subKey(sub, 'auth')
-        }, function (ok, res) {
+        sendSubscription(sub, function (ok, res) {
           if (!ok) {
             var msg = typeof res === 'string' ? res : '';
             // 서버에 알림용 함수가 아직 없는 경우 — 원인을 알 수 있게 바꿔서 보여준다
@@ -598,7 +594,6 @@
             done(false, msg || '서버에 등록하지 못했어요');
             return;
           }
-          storage.set(KEY.pushSub, sub.endpoint);
           storage.set(KEY.notifOn, true);
           syncAlarms();
           done(true, '알림을 켰어요');
@@ -611,12 +606,54 @@
     });
   }
 
+  // 구독을 서버에 올린다 (같은 주소면 갱신만 됨)
+  function sendSubscription(sub, done) {
+    cloudRpc('med_push_sub', {
+      p_key: ensureCloudKey(),
+      p_endpoint: sub.endpoint,
+      p_p256dh: subKey(sub, 'p256dh'),
+      p_auth: subKey(sub, 'auth')
+    }, function (ok, res) {
+      if (ok) {
+        storage.set(KEY.pushSub, sub.endpoint);
+        storage.set(KEY.pushAt, Date.now());
+      }
+      done(ok, res);
+    });
+  }
+
+  /* 앱을 열 때마다 구독이 아직 살아 있는지 확인한다.
+     구독은 iOS가 갱신하거나 서버가 만료로 판단해 지울 수 있는데,
+     그때 다시 등록할 방법이 없으면 알림이 조용히 영영 끊긴다. */
+  function ensurePushRegistered() {
+    if (!notifOn() || !pushSupported() || !cloudKey()) return;
+    if (Notification.permission !== 'granted') return;
+    var savedEp = storage.get(KEY.pushSub, null);
+    var lastAt = storage.get(KEY.pushAt, 0) || 0;
+    navigator.serviceWorker.ready.then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) {
+        if (sub) return sub;
+        // 구독이 사라졌으면 조용히 다시 만든다 (권한이 남아 있으면 물어보지 않음)
+        return reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlB64ToBytes(VAPID_PUBLIC)
+        }).catch(function () { return null; });
+      });
+    }).then(function (sub) {
+      if (!sub) return;
+      // 주소가 바뀌었거나 올린 지 반나절이 지났으면 다시 올린다
+      if (sub.endpoint === savedEp && Date.now() - lastAt < 12 * 3600 * 1000) return;
+      sendSubscription(sub, function () { /* 실패해도 다음 기회에 */ });
+    }).catch(function () { /* noop */ });
+  }
+
   // 알림 끄기 — 구독 해지 + 서버에 남은 예약 삭제 (기록은 건드리지 않음)
   function disableNotif(done) {
     var endpoint = storage.get(KEY.pushSub, null);
     var key = cloudKey();
     storage.set(KEY.notifOn, false);
     storage.set(KEY.pushSub, null);
+    storage.set(KEY.pushAt, 0);
     if (key) {
       cloudRpc('med_alarm_sync', { p_key: key, p_alarms: [] }, function () {});
       if (endpoint) cloudRpc('med_push_unsub', { p_key: key, p_endpoint: endpoint }, function () {});
@@ -3086,11 +3123,11 @@
 
   // 탭 복귀 시 화면 갱신 (자정 넘김·백그라운드 경과 반영) + 밀린 백업 올리기
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) { render(); cloudCatchUp(); if (notifOn()) syncAlarms(); }
+    if (!document.hidden) { render(); cloudCatchUp(); ensurePushRegistered(); if (notifOn()) syncAlarms(); }
   });
   // 인터넷이 돌아오면, 앱을 켤 때 못 올린 게 있으면 자동으로 다시 시도
-  window.addEventListener('online', function () { cloudCatchUp(); if (notifOn()) syncAlarms(); });
-  setTimeout(function () { cloudCatchUp(); if (notifOn()) syncAlarms(); }, 2000);
+  window.addEventListener('online', function () { cloudCatchUp(); ensurePushRegistered(); if (notifOn()) syncAlarms(); });
+  setTimeout(function () { cloudCatchUp(); ensurePushRegistered(); if (notifOn()) syncAlarms(); }, 2000);
 
   // 서비스워커 등록 (미리보기 등 지원 안 되는 환경은 조용히 통과)
   if ('serviceWorker' in navigator) {
