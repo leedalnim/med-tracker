@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v116';
+  var APP_VERSION = 'v117';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -174,9 +174,10 @@
     if (h > 0) return h + '시간';
     return m + '분';
   }
+  // 초까지 넣으면 time 입력이 '05:00:00 AM'처럼 초 칸까지 보여준다 — 분 단위로만 다룬다
   function timeInputValue(ts) {
     var d = new Date(ts);
-    return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
   }
   function applyTimeToTs(ts, hms) { // 같은 날짜에 시:분:초 교체
     var p = hms.split(':');
@@ -1609,7 +1610,7 @@
         if (editing) {
           listHtml +=
             '<div class="time-edit">' +
-              '<input type="time" step="1" id="te-input" value="' + timeInputValue(d.ts) + '">' +
+              '<input type="time" id="te-input" value="' + timeInputValue(d.ts) + '">' +
               '<button class="pill-btn" data-md-save="' + esc(d.id) + '">저장</button>' +
               '<button class="text-btn" data-md-cancel>닫기</button>' +
             '</div>';
@@ -1650,7 +1651,7 @@
           '<div class="form-field"><label for="da-date">날짜</label>' +
             '<input id="da-date" type="date" max="' + todayKey() + '" value="' + todayKey() + '"></div>' +
           '<div class="form-field"><label for="da-time">시각</label>' +
-            '<input id="da-time" type="time" step="1" value="' + timeInputValue(nowD.getTime()) + '"></div>' +
+            '<input id="da-time" type="time" value="' + timeInputValue(nowD.getTime()) + '"></div>' +
           '<p class="form-error" id="da-error"></p>' +
           '<div class="form-actions">' +
             '<button class="pill-btn secondary" id="da-cancel">취소</button>' +
@@ -1970,7 +1971,7 @@
         if (editing) {
           html +=
             '<div class="time-edit">' +
-              '<input type="time" step="1" id="te-input" value="' + timeInputValue(d.ts) + '">' +
+              '<input type="time" id="te-input" value="' + timeInputValue(d.ts) + '">' +
               '<button class="pill-btn" data-dp-save="' + esc(d.id) + '">저장</button>' +
               '<button class="text-btn" data-dp-cancel>닫기</button>' +
             '</div>';
@@ -2390,9 +2391,11 @@
         '<button class="mm-row" data-mm="' + esc(e.name) + '">' +
           '<span class="mm-txt">' +
             '<span class="mm-name">' + esc(e.name) + '</span>' +
-            (labs
-              ? '<span class="mm-labs">' + labs + '</span>'
-              : '<span class="mm-sub">' + medMetaText(med) + '</span>') +
+            // 칩이 메타를 대체하면 즐겨찾기 약만 정보가 사라지고 행 높이도 제각각이 된다.
+            // 칩과 메타를 같은 줄에 나란히 둬서 네 행 모두 같은 높이가 되게 한다.
+            '<span class="mm-sub">' + labs +
+              '<span class="mm-meta">' + medMetaText(med) + '</span>' +
+            '</span>' +
           '</span>' +
           '<span class="mm-chev">' + ICON.chevronR + '</span>' +
         '</button>';
@@ -2457,8 +2460,9 @@
         '<span class="switch' + (on ? ' on' : '') + '"></span></button>';
     }
 
+    // 설명 줄이 비면 이 행만 높이가 낮아져 토글이 어긋나 보인다 — 평상시 문구도 꼭 둔다
     var alarmDesc = !e.home ? '홈에 올려야 켤 수 있어요'
-      : (!notifOn() ? '설정에서 알림 받기를 먼저 켜주세요' : '');
+      : (!notifOn() ? '설정에서 알림 받기를 먼저 켜주세요' : '복용 시각이 되면 알려드려요');
     var LOCK = {
       alarm: !e.home
         ? ['알림을 켤 수 없어요',

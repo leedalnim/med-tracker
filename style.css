@@ -123,7 +123,9 @@ input, select {
 }
 
 /* ===== 공통 ===== */
-.screen-head { margin: 8px 4px 20px; }
+/* 아래 24px — 설정 화면의 그룹 사이 간격(.settings-group의 margin-bottom)과 같은 값.
+   헤더 다음 소제목만 20px이라 리듬이 어긋나 보였다. */
+.screen-head { margin: 8px 4px 24px; }
 .screen-head h1 {
   font-size: 28px;
   font-weight: 800;
@@ -1127,7 +1129,7 @@ input, select {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-dim);
-  margin: 0 4px 10px;
+  margin: 0 4px 12px;
   /* '?' 버튼과 세로 가운데 정렬 */
   display: flex;
   align-items: center;
@@ -1220,16 +1222,21 @@ input, select {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 칩(★·알림)과 메타 텍스트가 한 줄에 나란히 선다 — 칩 유무와 상관없이 행 높이가 같아야 한다 */
 .mm-sub {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11.5px;
   color: var(--text-dim);
   margin-top: 3px;
+}
+.mm-meta {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.mm-labs { display: flex; gap: 5px; align-items: center; margin-top: 5px; }
 .mm-lab {
   display: inline-flex;
   align-items: center;
@@ -1237,12 +1244,15 @@ input, select {
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: -0.2px;
+  line-height: 1;
   border-radius: 999px;
-  padding: 4px 8px 4px 7px;
+  /* 옆 메타 텍스트 한 줄과 같은 높이로 못박는다 — 칩이 더 높으면 그 행만 밀려 올라간다 */
+  height: 14px;
+  padding: 0 7px 0 6px;
   flex-shrink: 0;
 }
 .mm-lab .lucide { width: 11px; height: 11px; }
-.mm-lab.star { background: var(--line); color: var(--text-dim); padding: 4px 6px; }
+.mm-lab.star { background: var(--line); color: var(--text-dim); padding: 0 5px; }
 .mm-lab.bell { background: var(--accent-soft); color: var(--accent); }
 .mm-chev { color: var(--line); display: flex; flex-shrink: 0; }
 .mm-chev .lucide { width: 18px; height: 18px; }
