@@ -507,7 +507,7 @@ input, select {
 .ico-btn.sm svg { width: 14px; height: 14px; }
 
 /* 상세 대형 히어로 링 (가운데 상태 + 버튼 내장) */
-.detail-hero-card { padding-top: 22px; }
+.detail-hero-card { padding-top: 14px; padding-bottom: 16px; }
 .hero-ring {
   position: relative;
   width: 260px;
@@ -515,6 +515,9 @@ input, select {
   aspect-ratio: 1;
   margin: 4px auto 20px;
 }
+/* 링 SVG는 viewBox 안쪽에 원 바깥 여백을 약 25px 품고 있다.
+   상세에서는 그 여백까지 더해져 위아래가 휑해 보이므로 음수 마진으로 상쇄한다. */
+.detail-hero-card .hero-ring { margin: -6px auto 2px; }
 .hero-ring svg { width: 100%; height: 100%; display: block; }
 .hero-ring .ring-bg { stroke-width: 6.5; }
 .hero-ring .ring-fg { stroke-width: 6.5; }
@@ -578,6 +581,8 @@ input, select {
 .ds-item .ds-label { font-size: 11px; color: var(--text-dim); font-weight: 700; margin-top: 2px; }
 .detail-status { font-size: 14px; font-weight: 600; color: var(--text-dim); margin-bottom: 12px; }
 .check-log-full { width: 100%; }
+/* 회색 통계 박스 바로 아래에 붙으면 한 덩어리처럼 보여서 따로 띄워 준다 */
+.detail-stats + .check-log-full { margin-top: 14px; }
 .detail-status b { color: var(--text); }
 .detail-status .hl { color: var(--accent); }
 
