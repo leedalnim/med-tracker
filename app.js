@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v117';
+  var APP_VERSION = 'v118';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -55,6 +55,8 @@
     period: 'mt.period',      // ['YYYY-MM-DD', ...] 생리로 표시한 날
     spotting: 'mt.spotting',  // ['YYYY-MM-DD', ...] 부정출혈로 표시한 날 (예측 계산엔 미포함)
     periodOn: 'mt.periodOn',  // 생리주기 기능 사용 여부 (기본 꺼짐, 설정에서 켬)
+    cycleLen: 'mt.cycleLen',  // 평균 주기(일) — 기록이 1번뿐일 때 예측에 쓰는 값
+    periodLen: 'mt.periodLen',// 생리 기간(일) — 위와 같은 용도
     theme: 'mt.theme',        // 'system' | 'light' | 'dark'
     migr: 'mt.migr',          // 데이터 마이그레이션 버전
     cloudKey: 'mt.cloudKey',  // 복구 코드(UUID) — 이 코드를 아는 기기만 내 백업에 접근
@@ -260,6 +262,15 @@
   function saveDoses(doses) { storage.set(KEY.doses, doses); }
 
   function isPeriodOn() { return storage.get(KEY.periodOn, false); } // 기본 꺼짐, 설정에서 켬
+  // 기록이 한 번뿐이면 간격을 계산할 수 없다. 그때 쓰는 기본값 (아이폰 건강과 같은 방식)
+  var DEF_CYCLE = 28, DEF_PLEN = 5;
+  var CYCLE_MIN = 15, CYCLE_MAX = 60, PLEN_MIN = 1, PLEN_MAX = 14;
+  function clampNum(v, lo, hi, dflt) {
+    v = Number(v);
+    return (isFinite(v) && v >= lo && v <= hi) ? Math.round(v) : dflt;
+  }
+  function cycleLen() { return clampNum(storage.get(KEY.cycleLen, DEF_CYCLE), CYCLE_MIN, CYCLE_MAX, DEF_CYCLE); }
+  function periodLenSet() { return clampNum(storage.get(KEY.periodLen, DEF_PLEN), PLEN_MIN, PLEN_MAX, DEF_PLEN); }
 
   /* ===== 화면 테마 ===== */
   function getTheme() { return storage.get(KEY.theme, 'system'); }
@@ -291,6 +302,8 @@
       period: storage.get(KEY.period, []),
       spotting: storage.get(KEY.spotting, []),
       periodOn: storage.get(KEY.periodOn, false),
+      cycleLen: cycleLen(),
+      periodLen: periodLenSet(),
       theme: getTheme()
     };
   }
@@ -303,6 +316,9 @@
     storage.set(KEY.period, Array.isArray(data.period) ? data.period : []);
     storage.set(KEY.spotting, Array.isArray(data.spotting) ? data.spotting : []);
     storage.set(KEY.periodOn, !!data.periodOn);
+    // 이 값들이 없는 옛 백업을 되돌릴 때 지금 설정을 기본값으로 덮어쓰지 않도록 있을 때만 쓴다
+    if (data.cycleLen) storage.set(KEY.cycleLen, clampNum(data.cycleLen, CYCLE_MIN, CYCLE_MAX, DEF_CYCLE));
+    if (data.periodLen) storage.set(KEY.periodLen, clampNum(data.periodLen, PLEN_MIN, PLEN_MAX, DEF_PLEN));
     if (data.theme) storage.set(KEY.theme, data.theme);
   }
   function recordCount(data) {
@@ -894,34 +910,43 @@
     storage.set(KEY.spotting, days);
   }
   function spottingEpisodes() { return episodesFrom(getSpottingDays()); }
-  // 사용자가 기록한 날짜들로만 산술 계산 (최근 6주기 평균)
+  // 기록이 2번 이상이면 실제 간격의 평균(최근 6주기)으로,
+  // 1번뿐이면 설정해 둔 주기 값으로 계산한다. estimated가 그 구분이다.
   function cycleStats() {
     var eps = periodEpisodes();
     if (!eps.length) return null;
-    var stats = { episodes: eps, avgCycle: null, nextStart: null, predDays: [] };
+    var stats = { episodes: eps, avgCycle: null, nextStart: null, predDays: [], estimated: false };
+    var avg, avgLen;
+
     if (eps.length >= 2) {
       var gaps = [];
       for (var i = 1; i < eps.length; i++) {
         gaps.push(diffDays(eps[i - 1].start, eps[i].start));
       }
       gaps = gaps.slice(-6);
-      var avg = Math.round(gaps.reduce(function (a, b) { return a + b; }, 0) / gaps.length);
+      avg = Math.round(gaps.reduce(function (a, b) { return a + b; }, 0) / gaps.length);
       var lenSum = 0;
       eps.forEach(function (e) { lenSum += diffDays(e.start, e.end) + 1; });
-      var avgLen = Math.max(1, Math.round(lenSum / eps.length));
-      var nextStart = addDays(eps[eps.length - 1].start, avg);
-      stats.avgCycle = avg;
-      stats.avgLen = avgLen;
-      stats.nextStart = nextStart;
-      for (var d = 0; d < avgLen; d++) stats.predDays.push(addDays(nextStart, d));
-      // 배란 예정일 = 다음 생리 시작 14일 전(황체기 평균), 가임기 = 배란 -5 ~ +1일
-      stats.ovulation = addDays(nextStart, -14);
-      stats.fertileStart = addDays(stats.ovulation, -5);
-      stats.fertileEnd = addDays(stats.ovulation, 1);
-      stats.fertileDays = [];
-      var fk = stats.fertileStart;
-      while (fk <= stats.fertileEnd) { stats.fertileDays.push(fk); fk = addDays(fk, 1); }
+      avgLen = Math.max(1, Math.round(lenSum / eps.length));
+    } else {
+      // 시작일은 알지만 간격을 모르는 상태 — 설정값으로 메운다
+      avg = cycleLen();
+      avgLen = periodLenSet();
+      stats.estimated = true;
     }
+
+    var nextStart = addDays(eps[eps.length - 1].start, avg);
+    stats.avgCycle = avg;
+    stats.avgLen = avgLen;
+    stats.nextStart = nextStart;
+    for (var d = 0; d < avgLen; d++) stats.predDays.push(addDays(nextStart, d));
+    // 배란 예정일 = 다음 생리 시작 14일 전(황체기 평균), 가임기 = 배란 -5 ~ +1일
+    stats.ovulation = addDays(nextStart, -14);
+    stats.fertileStart = addDays(stats.ovulation, -5);
+    stats.fertileEnd = addDays(stats.ovulation, 1);
+    stats.fertileDays = [];
+    var fk = stats.fertileStart;
+    while (fk <= stats.fertileEnd) { stats.fertileDays.push(fk); fk = addDays(fk, 1); }
     return stats;
   }
 
@@ -2060,9 +2085,6 @@
     if (stats && stats.avgCycle) {
       var dd = diffDays(tk, stats.nextStart);
       var ddLabel = dd > 0 ? 'D-' + dd : (dd === 0 ? '오늘' : dd * -1 + '일 지남');
-      var lenSum = 0;
-      eps.forEach(function (e) { lenSum += diffDays(e.start, e.end) + 1; });
-      var avgLen = Math.max(1, Math.round(lenSum / eps.length));
       var ovDd = diffDays(tk, stats.ovulation);
       var ovLabel = ovDd > 0 ? 'D-' + ovDd : (ovDd === 0 ? '오늘' : ovDd * -1 + '일 지남');
       var stripPrefix = function (key) {
@@ -2071,8 +2093,10 @@
       html +=
         '<div class="card">' +
           '<div class="detail-stats">' +
-            '<div class="ds-item"><div class="ds-num">' + stats.avgCycle + '일</div><div class="ds-label">평균 주기</div></div>' +
-            '<div class="ds-item"><div class="ds-num">' + avgLen + '일</div><div class="ds-label">평균 기간</div></div>' +
+            '<div class="ds-item"><div class="ds-num">' + stats.avgCycle + '일</div><div class="ds-label">' +
+              (stats.estimated ? '설정 주기' : '평균 주기') + '</div></div>' +
+            '<div class="ds-item"><div class="ds-num">' + stats.avgLen + '일</div><div class="ds-label">' +
+              (stats.estimated ? '설정 기간' : '평균 기간') + '</div></div>' +
           '</div>' +
           '<div class="ovul-box">' +
             '<div class="ovul-row"><span class="ovul-dot np"></span><span class="ovul-label">다음 예정일</span>' +
@@ -2082,11 +2106,16 @@
             '<div class="ovul-row"><span class="ovul-dot fe"></span><span class="ovul-label">가임기</span>' +
               '<b>' + stripPrefix(stats.fertileStart) + ' ~ ' + stripPrefix(stats.fertileEnd) + '</b></div>' +
           '</div>' +
-          '<p class="ovul-note">최근 기록 평균으로 계산한 <b>예측</b>이에요. 배란·가임기는 추정치이니 피임·임신 계획의 근거로 삼지 마세요.</p>' +
+          '<p class="ovul-note">' +
+            (stats.estimated
+              ? '기록이 한 번뿐이라 <b>설정한 주기 ' + stats.avgCycle + '일</b>로 계산한 예상이에요. ' +
+                '다음 생리를 기록하면 실제 간격으로 바뀝니다.'
+              : '최근 기록 평균으로 계산한 <b>예측</b>이에요.') +
+            ' 배란·가임기는 추정치이니 피임·임신 계획의 근거로 삼지 마세요.</p>' +
         '</div>';
     } else {
       html +=
-        '<div class="cycle-info"><span class="dot"></span>기록이 2번 이상 쌓이면 다음 예정일을 계산해요</div>';
+        '<div class="cycle-info"><span class="dot"></span>생리를 한 번 기록하면 다음 예정일을 계산해요</div>';
     }
 
     // 기록 추가/수정 — 시작일 + 기간(일)만 입력, 종료일은 자동 계산
@@ -2616,7 +2645,24 @@
         '<div><div class="m-title">생리주기 기능</div>' +
         '<div class="m-desc">달력에서 생리 기록·예측 사용</div></div>' +
         '<span class="switch' + (isPeriodOn() ? ' on' : '') + '"></span>' +
-      '</button></div>';
+      '</button>';
+    // 기록이 1번뿐일 때 예측에 쓰는 값. 2번 이상 쌓이면 실제 간격이 이 값을 대신한다.
+    if (isPeriodOn()) {
+      html +=
+        '<div class="toggle-row num-row">' +
+          '<div><div class="m-title">평균 주기</div>' +
+          '<div class="m-desc">기록이 쌓이기 전까지 쓰는 값</div></div>' +
+          '<span class="num-field"><input id="cycle-len" type="number" inputmode="numeric" ' +
+            'min="' + CYCLE_MIN + '" max="' + CYCLE_MAX + '" value="' + cycleLen() + '"><i>일</i></span>' +
+        '</div>' +
+        '<div class="toggle-row num-row">' +
+          '<div><div class="m-title">생리 기간</div>' +
+          '<div class="m-desc">며칠 동안 이어지는지</div></div>' +
+          '<span class="num-field"><input id="period-len" type="number" inputmode="numeric" ' +
+            'min="' + PLEN_MIN + '" max="' + PLEN_MAX + '" value="' + periodLenSet() + '"><i>일</i></span>' +
+        '</div>';
+    }
+    html += '</div>';
 
     // 복약 알림 — 이 기기 전용 설정. 서버가 '다음 복용 시각'에 맞춰 푸시를 보낸다.
     var nOn = notifOn(), nBlocked = isIOS() && !isStandalone();
@@ -2689,6 +2735,19 @@
       storage.set(KEY.periodOn, !isPeriodOn());
       renderSettings();
     });
+
+    // 주기·기간 값 — 입력에서 손을 뗄 때 저장한다 (타이핑 도중에 다시 그리면 커서가 튄다)
+    function bindNum(id, key, lo, hi, dflt) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('change', function () {
+        var v = clampNum(el.value, lo, hi, dflt);
+        el.value = v;             // 범위를 벗어난 입력은 눈에도 바로잡아 보여준다
+        storage.set(key, v);      // storage.set이 변경 시각 기록과 백업 예약까지 맡는다
+      });
+    }
+    bindNum('cycle-len', KEY.cycleLen, CYCLE_MIN, CYCLE_MAX, DEF_CYCLE);
+    bindNum('period-len', KEY.periodLen, PLEN_MIN, PLEN_MAX, DEF_PLEN);
 
     var notifToggle = document.getElementById('notif-toggle');
     if (notifToggle) {

@@ -1380,6 +1380,31 @@ input, select {
 .link-chev .lucide { width: 18px; height: 18px; }
 /* 토글이 여러 줄 이어질 때 */
 .toggle-row + .toggle-row { margin-top: 8px; }
+/* 토글 대신 숫자를 받는 줄 (주기·기간) — 토글 줄과 같은 카드 규격을 쓴다 */
+.num-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.num-field input {
+  width: 58px;
+  text-align: center;
+  font-size: 16px;      /* 16px 미만이면 iOS가 입력할 때 화면을 확대해 버린다 */
+  font-weight: 800;
+  color: var(--text);
+  background: var(--bg);
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 6px;
+  -moz-appearance: textfield;
+}
+.num-field input::-webkit-outer-spin-button,
+.num-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.num-field i { font-style: normal; }
 .toggle-row[disabled] { opacity: 0.5; }
 /* 토글 줄과 링크 줄(약 관리)은 같은 글자 규격을 쓴다 */
 .toggle-row .m-title,
