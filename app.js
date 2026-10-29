@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v118';
+  var APP_VERSION = 'v119';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -264,6 +264,7 @@
   function isPeriodOn() { return storage.get(KEY.periodOn, false); } // 기본 꺼짐, 설정에서 켬
   // 기록이 한 번뿐이면 간격을 계산할 수 없다. 그때 쓰는 기본값 (아이폰 건강과 같은 방식)
   var DEF_CYCLE = 28, DEF_PLEN = 5;
+  var CYCLES_AHEAD = 12;   // 예측을 몇 주기 앞까지 그릴지 (약 1년)
   var CYCLE_MIN = 15, CYCLE_MAX = 60, PLEN_MIN = 1, PLEN_MAX = 14;
   function clampNum(v, lo, hi, dflt) {
     v = Number(v);
@@ -935,18 +936,29 @@
       stats.estimated = true;
     }
 
-    var nextStart = addDays(eps[eps.length - 1].start, avg);
+    var lastStart = eps[eps.length - 1].start;
+    var nextStart = addDays(lastStart, avg);
     stats.avgCycle = avg;
     stats.avgLen = avgLen;
     stats.nextStart = nextStart;
-    for (var d = 0; d < avgLen; d++) stats.predDays.push(addDays(nextStart, d));
-    // 배란 예정일 = 다음 생리 시작 14일 전(황체기 평균), 가임기 = 배란 -5 ~ +1일
-    stats.ovulation = addDays(nextStart, -14);
+
+    // 달력을 앞으로 넘겨도 계속 보이도록 1년치(12주기)를 미리 만든다.
+    // 한 주기만 만들면 다음 달부터는 칠할 날짜가 없어 표시가 끊긴다.
+    stats.predDays = [];
+    stats.fertileDays = [];
+    stats.ovulDays = [];
+    for (var c = 1; c <= CYCLES_AHEAD; c++) {
+      var start = addDays(lastStart, avg * c);
+      for (var d = 0; d < avgLen; d++) stats.predDays.push(addDays(start, d));
+      // 배란 예정일 = 생리 시작 14일 전(황체기 평균), 가임기 = 배란 -5 ~ +1일
+      var ov = addDays(start, -14);
+      stats.ovulDays.push(ov);
+      for (var f = -5; f <= 1; f++) stats.fertileDays.push(addDays(ov, f));
+    }
+    // 통계 화면이 쓰는 '다음 한 번' 값 — 위 목록의 첫 주기와 같다
+    stats.ovulation = stats.ovulDays[0];
     stats.fertileStart = addDays(stats.ovulation, -5);
     stats.fertileEnd = addDays(stats.ovulation, 1);
-    stats.fertileDays = [];
-    var fk = stats.fertileStart;
-    while (fk <= stats.fertileEnd) { stats.fertileDays.push(fk); fk = addDays(fk, 1); }
     return stats;
   }
 
@@ -1849,10 +1861,11 @@
     if (stats && stats.predDays) {
       stats.predDays.forEach(function (k) { predSet[k] = true; });
     }
-    var fertileSet = {}, ovulKey = null;
+    var fertileSet = {}, ovulSet = {};
     if (stats && stats.avgCycle) {
       stats.fertileDays.forEach(function (k) { fertileSet[k] = true; });
-      ovulKey = stats.ovulation;
+      // 배란일도 주기마다 하나씩 있다 — 한 날짜만 보면 다음 달부터 표시가 끊긴다
+      stats.ovulDays.forEach(function (k) { ovulSet[k] = true; });
     }
 
     // 이 달의 복용 기록 수
@@ -1907,7 +1920,7 @@
       if (periodSet[k]) cls += ' period';
       else if (spottingSet[k]) cls += ' spotting';
       else if (predSet[k]) cls += ' pred';
-      else if (k === ovulKey) cls += ' ovul';
+      else if (ovulSet[k]) cls += ' ovul';
       else if (fertileSet[k]) cls += ' fertile';
       if (doseCount[k]) cls += ' dosed'; // 약 먹은 날 — 얇은 회색 테두리
       if (k === state.selKey) cls += ' sel';
