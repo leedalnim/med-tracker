@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v119';
+  var APP_VERSION = 'v120';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -264,7 +264,6 @@
   function isPeriodOn() { return storage.get(KEY.periodOn, false); } // 기본 꺼짐, 설정에서 켬
   // 기록이 한 번뿐이면 간격을 계산할 수 없다. 그때 쓰는 기본값 (아이폰 건강과 같은 방식)
   var DEF_CYCLE = 28, DEF_PLEN = 5;
-  var CYCLES_AHEAD = 12;   // 예측을 몇 주기 앞까지 그릴지 (약 1년)
   var CYCLE_MIN = 15, CYCLE_MAX = 60, PLEN_MIN = 1, PLEN_MAX = 14;
   function clampNum(v, lo, hi, dflt) {
     v = Number(v);
@@ -942,24 +941,35 @@
     stats.avgLen = avgLen;
     stats.nextStart = nextStart;
 
-    // 달력을 앞으로 넘겨도 계속 보이도록 1년치(12주기)를 미리 만든다.
-    // 한 주기만 만들면 다음 달부터는 칠할 날짜가 없어 표시가 끊긴다.
-    stats.predDays = [];
-    stats.fertileDays = [];
-    stats.ovulDays = [];
-    for (var c = 1; c <= CYCLES_AHEAD; c++) {
-      var start = addDays(lastStart, avg * c);
-      for (var d = 0; d < avgLen; d++) stats.predDays.push(addDays(start, d));
-      // 배란 예정일 = 생리 시작 14일 전(황체기 평균), 가임기 = 배란 -5 ~ +1일
-      var ov = addDays(start, -14);
-      stats.ovulDays.push(ov);
-      for (var f = -5; f <= 1; f++) stats.fertileDays.push(addDays(ov, f));
-    }
-    // 통계 화면이 쓰는 '다음 한 번' 값 — 위 목록의 첫 주기와 같다
-    stats.ovulation = stats.ovulDays[0];
+    // 예측 날짜 목록은 여기서 만들지 않는다. 몇 주기치를 미리 만들어 두면
+    // 그 끝을 넘어간 달부터 다시 표시가 끊긴다. 달력이 보고 있는 달을
+    // cycleMarks()에 넘겨 그때그때 계산한다 — 몇 년 뒤를 넘겨도 채워진다.
+    stats.lastStart = lastStart;
+    // 통계 화면이 쓰는 '다음 한 번' 값
+    // 배란 예정일 = 생리 시작 14일 전(황체기 평균), 가임기 = 배란 -5 ~ +1일
+    stats.ovulation = addDays(nextStart, -14);
     stats.fertileStart = addDays(stats.ovulation, -5);
     stats.fertileEnd = addDays(stats.ovulation, 1);
     return stats;
+  }
+
+  // fromKey~toKey 구간에 걸치는 예측만 계산한다 (달력이 보고 있는 달).
+  // 구간을 덮는 주기 번호만 돌기 때문에 몇 년 뒤를 봐도 비지 않는다.
+  function cycleMarks(stats, fromKey, toKey) {
+    var marks = { pred: {}, ovul: {}, fertile: {} };
+    if (!stats || !stats.avgCycle) return marks;
+    var avg = stats.avgCycle;
+    // 가임기는 생리 시작보다 최대 19일 앞서므로 앞뒤로 한 주기씩 여유를 둔다
+    var first = Math.max(1, Math.floor(diffDays(stats.lastStart, fromKey) / avg) - 1);
+    var last = Math.ceil(diffDays(stats.lastStart, toKey) / avg) + 1;
+    for (var c = first; c <= last; c++) {
+      var start = addDays(stats.lastStart, avg * c);
+      for (var d = 0; d < stats.avgLen; d++) marks.pred[addDays(start, d)] = true;
+      var ov = addDays(start, -14);
+      marks.ovul[ov] = true;
+      for (var f = -5; f <= 1; f++) marks.fertile[addDays(ov, f)] = true;
+    }
+    return marks;
   }
 
   /* ===== 상태/라우팅 ===== */
@@ -1857,17 +1867,6 @@
       getPeriodDays().forEach(function (k) { periodSet[k] = true; });
       getSpottingDays().forEach(function (k) { spottingSet[k] = true; });
     }
-    var predSet = {};
-    if (stats && stats.predDays) {
-      stats.predDays.forEach(function (k) { predSet[k] = true; });
-    }
-    var fertileSet = {}, ovulSet = {};
-    if (stats && stats.avgCycle) {
-      stats.fertileDays.forEach(function (k) { fertileSet[k] = true; });
-      // 배란일도 주기마다 하나씩 있다 — 한 날짜만 보면 다음 달부터 표시가 끊긴다
-      stats.ovulDays.forEach(function (k) { ovulSet[k] = true; });
-    }
-
     // 이 달의 복용 기록 수
     var doseCount = {};
     getDoses().forEach(function (d) {
@@ -1880,6 +1879,12 @@
     var startWd = first.getDay();
     var daysInMonth = new Date(y, m + 1, 0).getDate();
     var tk = todayKey();
+
+    // 지금 보고 있는 달의 예측만 계산한다 (몇 년 뒤로 넘겨도 비지 않는다)
+    var marks = cycleMarks(stats,
+      y + '-' + pad2(m + 1) + '-01',
+      y + '-' + pad2(m + 1) + '-' + pad2(daysInMonth));
+    var predSet = marks.pred, ovulSet = marks.ovul, fertileSet = marks.fertile;
 
     var html =
       '<header class="screen-head">' +
