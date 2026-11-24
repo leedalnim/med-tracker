@@ -3,7 +3,7 @@
   'use strict';
 
   // 화면에 표시할 버전 — sw.js의 CACHE_NAME과 같이 올릴 것
-  var APP_VERSION = 'v120';
+  var APP_VERSION = 'v121';
 
   /* ===== 확대(줌) 차단 — 더블탭 + 핀치(iOS 포함) ===== */
   ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -1217,6 +1217,9 @@
   }
 
   var DAY_MS = 24 * 3600 * 1000;
+  // 복용 체크 약을 날짜가 바뀐 직후 또 먹는 것만 막는 최소 간격.
+  // 평소 시각이 조금 밀려도 다음 날 같은 시각에 누를 수 있도록 24시간보다 짧게 둔다.
+  var CHECK_MIN_GAP_MS = 12 * 3600 * 1000;
   // 복용 예정 시각 직전 유예 — 이 시간 안에 들면 '먹었어요'를 미리 누를 수 있음
   var GRACE_MS = 3 * 60 * 1000;
   // 복용 내역을 한 번에 보여주는 건수 ('더 보기'로 이만큼씩 추가)
@@ -1228,18 +1231,38 @@
     return h + ':' + String(m).padStart(2, '0');
   }
 
-  // 복용 체크 약의 24시간 링 상태 — '마지막 복용 시각 + 24시간' 기준.
-  // 날짜(자정)와 무관하게 이어져야 하므로 오늘 기록이 아니라 마지막 복용을 본다.
+  // 복용 체크 약의 상태.
+  //
+  // 하루 1회 약의 기준은 '오늘 먹었는가'다. 예전처럼 '마지막 복용 + 24시간'으로
+  // 막으면 한 번 늦게 기록했을 때 그 시각이 새 기준이 되어 날마다 조금씩 밀린다
+  // (12:30 약을 하루 13:10에 기록하면 그 다음부터 12:30에는 영영 못 누른다).
+  // 다만 밤늦게 먹고 자정 직후에 또 먹는 것은 막아야 하므로 최소 간격을 둔다.
+  //
+  // 표시(링)와 차단(버튼)은 기준이 다르다:
+  //   - 오늘 먹었으면 24시간 링을 그대로 보여준다 (자정을 넘겨도 끊기지 않게)
+  //   - 오늘 안 먹었으면 최소 간격만 지나면 바로 기록할 수 있다
   function computeCheckRing(med) {
     var last = lastDoseForMed(med.id);
-    if (!last) return { active: false, last: null };
-    var remainMs = last.ts + DAY_MS - Date.now();
-    if (remainMs <= 0) return { active: false, last: last }; // 24시간 지남 → 복용 가능
+    if (!last) return { active: false, last: null, takenToday: false };
+    var now = Date.now();
+
+    if (todayDosesForMed(med.id).length) {
+      var remain24 = last.ts + DAY_MS - now;
+      return {
+        active: remain24 > 0, last: last, takenToday: true,
+        remainMs: Math.max(0, remain24), nextAt: last.ts + DAY_MS,
+        canLog: false,
+        frac: Math.max(0, Math.min(1, remain24 / DAY_MS))
+      };
+    }
+
+    var remainGap = last.ts + CHECK_MIN_GAP_MS - now;
+    if (remainGap <= 0) return { active: false, last: last, takenToday: false };
     return {
-      active: true, last: last, remainMs: remainMs,
-      nextAt: last.ts + DAY_MS,
-      canLog: remainMs <= GRACE_MS, // 예정 시각 직전이면 미리 기록 허용
-      frac: Math.max(0, Math.min(1, remainMs / DAY_MS))
+      active: true, last: last, takenToday: false,
+      remainMs: remainGap, nextAt: last.ts + CHECK_MIN_GAP_MS,
+      canLog: remainGap <= GRACE_MS, // 예정 시각 직전이면 미리 기록 허용
+      frac: Math.max(0, Math.min(1, remainGap / CHECK_MIN_GAP_MS))
     };
   }
 
@@ -1589,7 +1612,7 @@
           '</div>'
         : '<div class="hero-ring pie">' + pieRingSvg(0,
             '<div class="hero-center"><div class="hero-label">복용 전</div>' +
-            '<div class="hero-sub">먹으면 24시간 표시</div></div>') +
+            '<div class="hero-sub">오늘 아직 안 드셨어요</div></div>') +
           '</div>';
       topCard =
         '<div class="card detail-hero-card">' +
